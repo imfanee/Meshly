@@ -12,6 +12,13 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-17: T0.5 Spike: AI model IDs and CORS
+
+- Changed: added `docs/spikes/ai-models.md` with verified default model IDs per provider and live CORS probe results.
+- Verified: OpenAI transcription default must be `gpt-transcribe` (whisper-1 and the gpt-4o-transcribe family are deprecated, removal 2027-02-26); summary default `gpt-5-mini`. Anthropic `claude-haiku-5-5` is real and current. Gemini defaults `gemini-3.1-flash-lite` (summary) and `gemini-3.5-transcribe` (transcription); Groq `whisper-large-v3-turbo` plus `openai/gpt-oss-20b` (llama-3.3-70b deprecated 2026-08). CORS probes: all five endpoints return usable preflights and origin headers from a browser; Gemini requires sending only `content-type` and `x-goog-api-key`.
+- Open: Groq turned out to be an attractive default suggestion (free tier, cheap fast Whisper); flagged for Faisal under open question 6.
+- Commit: pending
+
 ## 2026-10-17: T0.4 Spike: MQTT brokers
 
 - Changed: added `app/tools/spike-mqtt.mjs` (two clients per broker, 20 QoS-0 messages, delivery and latency); results in `docs/spikes/mqtt.md`; `VITE_MQTT_BROKERS` updated in `.env.example`, `app/.env` and `app/.env.production`.
