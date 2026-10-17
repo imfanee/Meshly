@@ -74,6 +74,8 @@ export const session = $state({
   chat: [] as ChatMsg[],
   reactions: [] as Reaction[],
   handUp: false,
+  /** Host asked me to mute; show the consent banner. */
+  muteAsk: false,
 });
 
 // Non-reactive internals (CryptoKeys must not be Svelte-proxied).
@@ -135,6 +137,7 @@ export function resetSession(): void {
   session.drops = [];
   seenCtl.clear();
   session.handUp = false;
+  session.muteAsk = false;
 }
 
 async function connectHub(keys: Awaited<ReturnType<typeof joinRoomKeys>>) {
@@ -242,7 +245,16 @@ function handleCtl(peerId: string, msg: CtlMessage): void {
     msg.t === 'share-busy'
   ) {
     handleShareCtl(peerId, msg);
+  } else if (msg.t === 'mute-req' && peerId === hostPeerId()) {
+    // Only the host may ask; consent is required, never remote-mute.
+    session.muteAsk = true;
+  } else if (msg.t === 'lower-hand' && peerId === hostPeerId()) {
+    setHand(false);
   }
+}
+
+function hostPeerId(): string | null {
+  return session.roster.find((r) => r.role === 'host')?.peerId ?? null;
 }
 
 /** Remote stream lookup for tiles (unproxied MediaStream). */
@@ -426,6 +438,22 @@ export const hostActions = {
   deny: (peerId: string) => membership?.deny(peerId, 'denied'),
   kick: (peerId: string) => membership?.kickPeer(peerId),
   setLocked: (v: boolean) => membership?.setLocked(v),
+  /** Ask a peer to mute (consent banner on their side, doc 06 s.4). */
+  askMute: (peerId: string) =>
+    peerManager?.sendCtlTo(peerId, {
+      t: 'mute-req',
+      id: crypto.randomUUID(),
+      ts: Date.now(),
+      b: {},
+    }),
+  /** Lower a peer's raised hand. */
+  lowerHand: (peerId: string) =>
+    peerManager?.sendCtlTo(peerId, {
+      t: 'lower-hand',
+      id: crypto.randomUUID(),
+      ts: Date.now(),
+      b: {},
+    }),
 };
 
 export async function leaveCall(): Promise<void> {

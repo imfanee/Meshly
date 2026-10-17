@@ -12,6 +12,19 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-18: T2.2 Host controls
+
+- Changed: `mute-req` and `lower-hand` ctl messages (host-only, verified against the host roster entry); `hostActions.askMute/lowerHand`; People panel rows gain "Ask to mute" and (when raised) "Hand down"; a consent banner "The host asks you to mute" with Mute/Dismiss appears over the control bar on the target's side. Remove/kick, lock, end-for-everyone and host-reload resume were already in place from T1.5.
+- Verified: `npm run check` clean; hostControls e2e 3/3 (remove sends the guest to the removed screen, end-for-all sends guests to the ended screen, host reload resumes as host and admits still work).
+- Commit: pending
+
+## 2026-10-18: T2.1 Screen sharing
+
+- Changed: `PeerManager.startShare/stopShare` (getDisplayMedia, sendonly video transceiver per peer, `contentHint: 'detail'`, 1500/1000 kbps bitrate, `tracks` ctl message carrying the mid, stop via `track.onended`); `sendCtlTo` for point-to-point ctl; `screen` flag in the media message; `screenStreamOf(peerId)` resolves the receiver-side track by mid; session adds the `share-req`/`share-ok`/`share-busy` host gate (host shares directly, guests ask first, busy reply names the sharer); Call stage adds the screen-large `object-contain` layout with camera filmstrip, "X is sharing" label, "You are sharing your screen" pill plus small self preview; Share button only on `getDisplayMedia` + fine pointer.
+- Verified: `npm run check` clean; share e2e passes (host shares, guest sees "Host S is sharing" tile, stop cleans up).
+- Open: tab/system audio mixing is not wired; share-req pending has no timeout.
+- Commit: bf0015f
+
 ## 2026-10-18: T1.11 first production deploy
 
 - Deployed: `npm run deploy` uploaded 32 files (3.4 MB) to `meshly.softautonomi.com` in 32 s, manifest written.

@@ -28,8 +28,8 @@ Estimated effort for one agent with reviews: Phase 0 to 1 about 3 to 4 weeks of 
 
 ## Phase 2: complete meeting experience
 
-- [ ] **T2.1 Screen sharing** (doc 06 section 3). *Accept:* e2e screen share passes; hidden on mobile.
-- [ ] **T2.2 Host controls:** remove, ask to mute, lower hand, end for everyone, host reload resumes host. *Accept:* e2e remove, end, host reload pass.
+- [x] **T2.1 Screen sharing** (doc 06 section 3). *Accept:* e2e screen share passes; hidden on mobile.
+- [x] **T2.2 Host controls:** remove, ask to mute, lower hand, end for everyone, host reload resumes host. *Accept:* e2e remove, end, host reload pass.
 - [ ] **T2.3 Video slots** (6 max) with slot requests and host reassignment. *Accept:* e2e video slot test passes.
 - [ ] **T2.4 Bitrate policy** (doc 04 section 3) and off-screen pause. *Accept:* `getStats` shows bitrates within policy at 2, 4 and 6 senders.
 - [ ] **T2.5 Reconnect robustness:** ICE restart on network change, peer timeout cleanup, relay reconnection. *Accept:* e2e reconnect test passes; manual Wi-Fi to 4G switch keeps the call.

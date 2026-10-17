@@ -551,6 +551,23 @@
                 {#if r.role === 'host'}
                   <span class="text-xs text-text-muted">host</span>
                 {:else if isHost}
+                  {#if session.peers.find((p) => p.peerId === r.peerId)?.hand}
+                    <button
+                      class="rounded-md px-2 py-1 text-xs
+                        hover:bg-surface-2 focus-visible:outline-2
+                        focus-visible:outline-white"
+                      title="Lower hand"
+                      onclick={() => hostActions.lowerHand(r.peerId)}
+                      >Hand down</button
+                    >
+                  {/if}
+                  <button
+                    class="rounded-md px-2 py-1 text-xs
+                      hover:bg-surface-2 focus-visible:outline-2
+                      focus-visible:outline-white"
+                    onclick={() => hostActions.askMute(r.peerId)}
+                    >{t.people.askToMute}</button
+                  >
                   <button
                     class="rounded-md px-2 py-1 text-xs text-danger
                       hover:bg-surface-2 focus-visible:outline-2
@@ -590,6 +607,28 @@
     class="relative z-20 flex items-center justify-center gap-2 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:gap-3"
     aria-label="Call controls"
   >
+    {#if session.muteAsk}
+      <span
+        class="absolute -top-10 left-1/2 flex -translate-x-1/2 items-center
+          gap-2 rounded-full bg-surface-2 px-3 py-1.5 text-xs"
+        role="alert"
+      >
+        The host asks you to mute
+        <button
+          class="rounded-full bg-brand px-2.5 py-0.5 font-medium
+            text-[#04211d]"
+          onclick={() => {
+            void mediaActions.setMic(false);
+            session.muteAsk = false;
+          }}>Mute</button
+        >
+        <button
+          class="text-text-muted"
+          aria-label="Dismiss"
+          onclick={() => (session.muteAsk = false)}>&times;</button
+        >
+      </span>
+    {/if}
     {#if speakingMuted}
       <span
         class="absolute -top-8 left-1/2 -translate-x-1/2 rounded-full
