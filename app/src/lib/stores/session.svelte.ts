@@ -138,6 +138,9 @@ export function resetSession(): void {
   seenCtl.clear();
   session.handUp = false;
   session.muteAsk = false;
+  slotGranted = false;
+  pendingSlot = false;
+  grantedSlots.clear();
 }
 
 async function connectHub(keys: Awaited<ReturnType<typeof joinRoomKeys>>) {
@@ -250,8 +253,34 @@ function handleCtl(peerId: string, msg: CtlMessage): void {
     session.muteAsk = true;
   } else if (msg.t === 'lower-hand' && peerId === hostPeerId()) {
     setHand(false);
+  } else if (msg.t === 'slot-req' && session.role === 'host') {
+    // First come, first served while a slot is free (doc 06 s.4).
+    const free = videoSenderCount() < config.maxVideo;
+    if (free) grantedSlots.add(peerId);
+    peerManager?.sendCtlTo(peerId, {
+      t: free ? 'slot-ok' : 'slot-deny',
+      id: msg.id,
+      ts: Date.now(),
+      b: {},
+    });
+  } else if (msg.t === 'slot-ok' && pendingSlot && peerId === hostPeerId()) {
+    pendingSlot = false;
+    slotGranted = true;
+    void mediaActions.setCam(true);
+  } else if (msg.t === 'slot-deny' && pendingSlot && peerId === hostPeerId()) {
+    pendingSlot = false;
+    toast('No free camera slots right now');
+  } else if (msg.t === 'slot-revoke' && peerId === hostPeerId()) {
+    // Host reassigned the slot; camera off without consent needed.
+    slotGranted = false;
+    void mediaActions.setCam(false);
+    toast('The host reassigned your camera slot');
+    session.announce = 'The host turned off your camera';
   }
 }
+
+// eslint-disable-next-line svelte/prefer-svelte-reactivity -- host-side set
+const grantedSlots = new Set<string>();
 
 function hostPeerId(): string | null {
   return session.roster.find((r) => r.role === 'host')?.peerId ?? null;
@@ -454,6 +483,16 @@ export const hostActions = {
       ts: Date.now(),
       b: {},
     }),
+  /** Reassign a camera slot: the target's camera turns off. */
+  revokeSlot: (peerId: string) => {
+    grantedSlots.delete(peerId);
+    peerManager?.sendCtlTo(peerId, {
+      t: 'slot-revoke',
+      id: crypto.randomUUID(),
+      ts: Date.now(),
+      b: {},
+    });
+  },
 };
 
 export async function leaveCall(): Promise<void> {
@@ -515,6 +554,16 @@ export function setHand(up: boolean): void {
 export function screenStreamOf(peerId: string): MediaStream | null {
   return peerManager?.screenStreamOf(peerId) ?? null;
 }
+// ---- Video slots (doc 06 s.4): max maxVideo camera senders ----------------
+
+/** Number of peers currently sending camera video, including me. */
+function videoSenderCount(): number {
+  return (settings.camOn ? 1 : 0) + session.peers.filter((p) => p.camOn).length;
+}
+
+let slotGranted = false;
+let pendingSlot = false;
+
 export function localScreenStream(): MediaStream | null {
   const t = (peerManager as unknown as { screenTrack: MediaStreamTrack | null })
     ?.screenTrack;
@@ -601,6 +650,28 @@ export const mediaActions = {
     peerManager?.broadcastMediaState();
   },
   async setCam(on: boolean) {
+    if (
+      on &&
+      session.role !== 'host' &&
+      !slotGranted &&
+      videoSenderCount() >= config.maxVideo
+    ) {
+      const hostId = hostPeerId();
+      if (
+        hostId &&
+        peerManager?.sendCtlTo(hostId, {
+          t: 'slot-req',
+          id: crypto.randomUUID(),
+          ts: Date.now(),
+          b: {},
+        })
+      ) {
+        pendingSlot = true;
+        return;
+      }
+      toast('No free camera slots right now');
+      return;
+    }
     settings.camOn = on;
     await localMedia.setCam(on);
     peerManager?.broadcastMediaState();

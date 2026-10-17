@@ -155,3 +155,10 @@ Format:
 - Verified: shell scripts pass `bash -n`; `turn.php` passes `php -l`; docs reviewed for consistency.
 - Open: open questions 1 to 7 in docs/11-ROADMAP-TASKS.md.
 - Next: T0.1 Environment check.
+
+## 2026-10-18: T2.3 Video slots
+
+- Changed: `videoSenderCount()` + guest-side gate in `mediaActions.setCam` (when slots are full, guests send `slot-req` to the host; first-come `slot-ok`/`slot-deny` replies drive the camera on or a "No free camera slots" toast); host `revokeSlot` sends `slot-revoke` (camera off without consent, per doc 06 s.4 reassignment) and the People panel shows "Camera off" for video peers; slot state resets on leave.
+- Verified: `npm run check` clean; slots e2e passes (host revokes guest camera, camOn flips false remotely).
+- Open: full-room deny path needs 7+ contexts, exercised via the same ctl round-trip as the verified revoke path.
+- Commit: pending

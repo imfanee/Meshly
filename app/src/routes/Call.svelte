@@ -561,6 +561,15 @@
                       >Hand down</button
                     >
                   {/if}
+                  {#if session.peers.find((p) => p.peerId === r.peerId)?.camOn}
+                    <button
+                      class="rounded-md px-2 py-1 text-xs
+                        hover:bg-surface-2 focus-visible:outline-2
+                        focus-visible:outline-white"
+                      onclick={() => hostActions.revokeSlot(r.peerId)}
+                      >Camera off</button
+                    >
+                  {/if}
                   <button
                     class="rounded-md px-2 py-1 text-xs
                       hover:bg-surface-2 focus-visible:outline-2
