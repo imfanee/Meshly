@@ -8,12 +8,16 @@
 import type { RoomLink } from '../core/room/link';
 import type { RoomState, RosterEntry } from '../core/room/state';
 import type { PendingKnock } from '../core/room/membership';
+import type { Envelope } from '../core/signalling/envelope';
 import { Membership } from '../core/room/membership';
 import { SignallingHub, makeTransports } from '../core/signalling';
 import { joinRoomKeys } from '../core/room/room';
 import { loadHostKey } from '../core/room/hostKeyStore';
 import { generateIdentity, type IdentityKey } from '../core/crypto/sign';
 import { toBase64Url } from '../core/crypto/encoding';
+import { PeerManager, type PeerInfo } from '../core/webrtc/peerManager';
+import { localMedia } from '../core/media/localMedia';
+import { settings } from './settings.svelte';
 import { config } from '../../config';
 
 export type Phase = 'home' | 'prejoin' | 'lobby' | 'call' | 'ended';
@@ -35,6 +39,9 @@ export const session = $state({
   knocks: [] as PendingKnock[],
   locked: false,
   signalling: 'connecting' as 'connecting' | 'open' | 'degraded' | 'closed',
+  peers: [] as PeerInfo[],
+  announce: '',
+  drops: [] as string[],
 });
 
 // Non-reactive internals (CryptoKeys must not be Svelte-proxied).
@@ -42,6 +49,10 @@ let identity: IdentityKey | null = null;
 let hostIdentity: IdentityKey | null = null; // set by createRoom on Home
 let hub: SignallingHub | null = null;
 let membership: Membership | null = null;
+let peerManager: PeerManager | null = null;
+/** sdp/ice from peers whose ticket has not been verified yet (hello racing). */
+// eslint-disable-next-line svelte/prefer-svelte-reactivity -- deliberately non-reactive
+const pendingSignals = new Map<string, Envelope[]>();
 
 export function setHostIdentity(id: IdentityKey): void {
   hostIdentity = id;
@@ -64,6 +75,10 @@ export function leaveRoom(reason: EndReason): void {
 export function resetSession(): void {
   void membership?.leave();
   membership = null;
+  peerManager?.dispose();
+  peerManager = null;
+  localMedia.stopAll();
+  pendingSignals.clear();
   void hub?.close();
   hub = null;
   identity = null;
@@ -81,6 +96,8 @@ export function resetSession(): void {
   session.knocks = [];
   session.locked = false;
   session.signalling = 'connecting';
+  session.peers = [];
+  session.announce = '';
 }
 
 async function connectHub(keys: Awaited<ReturnType<typeof joinRoomKeys>>) {
@@ -93,19 +110,89 @@ async function connectHub(keys: Awaited<ReturnType<typeof joinRoomKeys>>) {
     room.hostThumb,
     {
       onMessage: (env, signer) => {
+        if (env.t === 'sdp' || env.t === 'ice') {
+          // Doc 03 s.5: media signalling only after ticket verification. The
+          // offer can arrive before our hello check finishes, so buffer.
+          if (membership?.isVerified(env.from) || peerManager?.has(env.from)) {
+            void peerManager?.handleSignal(env).catch((e) => {
+              session.drops.push(`sig:${String(e).slice(0, 120)}`);
+            });
+          } else {
+            const list = pendingSignals.get(env.from) ?? [];
+            if (list.length < 50) list.push(env);
+            pendingSignals.set(env.from, list);
+          }
+          return;
+        }
         void membership?.onMessage(env, signer);
       },
       onStatus: (s) => (session.signalling = s),
+      onDrop: (r) => session.drops.push(r),
     },
   );
   await hub.connect(keys.topic);
   session.peerId = hub.peerId;
 }
 
+function initPeerManager(): PeerManager {
+  if (!hub || !session.peerId) throw new Error('session: hub not ready');
+  peerManager?.dispose();
+  const pm = new PeerManager(hub, session.peerId, localMedia, {
+    onPeersChanged: (peers) => (session.peers = peers),
+    onPeerJoined: (id) => {
+      const name =
+        session.roster.find((r) => r.peerId === id)?.name ?? 'Someone';
+      session.announce = `${name} joined`;
+    },
+    onPeerLeft: (id) => {
+      const name =
+        session.roster.find((r) => r.peerId === id)?.name ?? 'Someone';
+      session.announce = `${name} left`;
+    },
+  });
+  peerManager = pm;
+  void pm.acquireWakeLock();
+  return pm;
+}
+
+/** Remote stream lookup for tiles (unproxied MediaStream). */
+export function peerStreamOf(peerId: string): MediaStream | null {
+  return peerManager?.streamOf(peerId) ?? null;
+}
+
+/** Debug accessor for e2e/diagnostics (not part of the UI contract). */
+export function debugPeers(): {
+  peerId: string;
+  signaling: string;
+  conn: string;
+  ice: string;
+  transceivers: number;
+  senders: (string | null)[];
+  dirs: string[];
+}[] {
+  if (!peerManager) return [];
+  return [
+    ...(
+      peerManager as unknown as {
+        peers: Map<string, { pc: RTCPeerConnection; peerId: string }>;
+      }
+    ).peers.values(),
+  ].map((p) => ({
+    peerId: p.peerId,
+    signaling: p.pc.signalingState,
+    conn: p.pc.connectionState,
+    ice: p.pc.iceConnectionState,
+    transceivers: p.pc.getTransceivers().length,
+    senders: p.pc.getTransceivers().map((t) => t.sender.track?.kind ?? null),
+    dirs: p.pc.getTransceivers().map((t) => t.direction),
+  }));
+}
+
 function applyState(st: RoomState): void {
   session.roster = st.roster;
   session.peerCount = st.roster.length;
   session.locked = st.locked;
+  peerManager?.reconcile(st.roster);
 }
 
 /** Host path: create hub, start state machine, enter the call. */
@@ -147,8 +234,11 @@ export async function startHost(name: string): Promise<void> {
     eventsFor(),
   );
   await membership.startHost();
+  const pm = initPeerManager();
   session.phase = 'call';
   session.joinedAt = Date.now();
+  await localMedia.acquire(settings.micOn, settings.camOn).catch(() => null);
+  await pm.applyLocalTracks();
 }
 
 function eventsFor() {
@@ -159,6 +249,23 @@ function eventsFor() {
     onAdmitted: () => {
       session.phase = 'call';
       session.joinedAt = Date.now();
+      const roster = membership?.roomState?.roster ?? [];
+      const pm = initPeerManager();
+      void localMedia
+        .acquire(settings.micOn, settings.camOn)
+        .catch(() => null)
+        .then(() => pm.offerToAll(roster));
+    },
+    onPeerVerified: (peerId: string) => {
+      void peerManager
+        ?.ensurePeer(peerId)
+        .then(() => peerManager?.applyLocalTracks())
+        .then(() => {
+          for (const env of pendingSignals.get(peerId) ?? []) {
+            void peerManager?.handleSignal(env);
+          }
+          pendingSignals.delete(peerId);
+        });
     },
     onHostPresence: (seen: boolean) => {
       if (
@@ -175,7 +282,12 @@ function eventsFor() {
       session.knocks = k;
     },
     onState: applyState,
-    onLeave: (reason: 'removed' | 'ended') => leaveRoom(reason),
+    onLeave: (reason: 'removed' | 'ended') => {
+      peerManager?.dispose();
+      peerManager = null;
+      localMedia.stopAll();
+      leaveRoom(reason);
+    },
     onError: (msg: string) => console.warn('membership:', msg),
   };
 }
@@ -212,11 +324,32 @@ export const hostActions = {
 };
 
 export async function leaveCall(): Promise<void> {
+  peerManager?.dispose();
+  peerManager = null;
+  localMedia.stopAll();
   await membership?.leave();
   leaveRoom('left');
 }
 
 export async function endCall(): Promise<void> {
+  peerManager?.dispose();
+  peerManager = null;
+  localMedia.stopAll();
   await membership?.end();
   leaveRoom('ended');
 }
+
+/** Media toggles: settings store + LocalMedia, which replaceTracks all peers. */
+export const mediaActions = {
+  async setMic(on: boolean) {
+    settings.micOn = on;
+    await localMedia.setMic(on);
+  },
+  async setCam(on: boolean) {
+    settings.camOn = on;
+    await localMedia.setCam(on);
+  },
+  async flipCamera() {
+    await localMedia.flipCamera();
+  },
+};

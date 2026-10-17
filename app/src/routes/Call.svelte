@@ -15,7 +15,10 @@
     leaveCall,
     endCall,
     hostActions,
+    mediaActions,
+    peerStreamOf,
   } from '../lib/stores/session.svelte';
+  import { localMedia } from '../lib/core/media/localMedia';
   import { settings } from '../lib/stores/settings.svelte';
   import { ui, togglePanel, toast } from '../lib/stores/ui.svelte';
   import {
@@ -85,6 +88,22 @@
     else void leaveCall();
   }
 
+  /** Bind an unproxied MediaStream to a video element. */
+  function attachStream(node: HTMLVideoElement, stream: MediaStream | null) {
+    node.srcObject = stream;
+    return {
+      update(s: MediaStream | null) {
+        node.srcObject = s;
+      },
+    };
+  }
+
+  let localStream = $state<MediaStream | null>(null);
+  onMount(() =>
+    localMedia.onChange(() => (localStream = localMedia.snapshot().stream)),
+  );
+  onMount(() => (localStream = localMedia.snapshot().stream));
+
   // Toast on new knocks so the host notices without the panel open.
   let seenKnocks = $state(0);
   $effect(() => {
@@ -133,26 +152,36 @@
     </Tooltip>
   </header>
 
-  <!-- Stage -->
+  <!-- Stage: local preview plus one tile per remote peer -->
   <main class="relative flex-1 overflow-hidden p-2">
-    <div class="grid h-full place-items-center">
+    <div
+      class="grid h-full gap-2"
+      style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+        align-content: center"
+    >
       <div
-        class="relative aspect-video w-full max-w-3xl overflow-hidden
-          rounded-xl border border-border bg-surface"
+        class="relative aspect-video w-full overflow-hidden rounded-xl
+          border border-border bg-surface"
         aria-label={settings.displayName || t.call.you}
       >
-        <div class="flex h-full items-center justify-center text-text-muted">
-          {#if settings.camOn}
-            <Video size={40} aria-hidden="true" />
-          {:else}
+        {#if settings.camOn && localStream}
+          <video
+            use:attachStream={localStream}
+            autoplay
+            playsinline
+            muted
+            class="h-full w-full object-cover"
+          ></video>
+        {:else}
+          <div class="flex h-full items-center justify-center text-text-muted">
             <span
               class="flex h-16 w-16 items-center justify-center rounded-full
                 bg-surface-2 text-xl font-semibold"
             >
               {(settings.displayName || 'Y').slice(0, 1).toUpperCase()}
             </span>
-          {/if}
-        </div>
+          </div>
+        {/if}
         <span
           class="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-md
             bg-black/60 px-2 py-0.5 text-xs text-white"
@@ -162,6 +191,27 @@
           {t.call.you}
         </span>
       </div>
+      {#each session.peers as p (p.peerId)}
+        <div
+          class="relative aspect-video w-full overflow-hidden rounded-xl
+            border border-border bg-surface"
+          aria-label={p.name}
+        >
+          <video
+            use:attachStream={peerStreamOf(p.peerId)}
+            autoplay
+            playsinline
+            class="h-full w-full object-cover"
+            data-peer={p.peerId}
+          ></video>
+          <span
+            class="absolute bottom-2 left-2 flex items-center gap-1.5
+              rounded-md bg-black/60 px-2 py-0.5 text-xs text-white"
+          >
+            {p.name}
+          </span>
+        </div>
+      {/each}
     </div>
   </main>
 
@@ -288,14 +338,14 @@
     <IconButton
       label={settings.micOn ? t.prejoin.micOn : t.prejoin.micOff}
       pressed={settings.micOn}
-      onclick={() => (settings.micOn = !settings.micOn)}
+      onclick={() => void mediaActions.setMic(!settings.micOn)}
     >
       {#if settings.micOn}<Mic size={22} />{:else}<MicOff size={22} />{/if}
     </IconButton>
     <IconButton
       label={settings.camOn ? t.prejoin.cameraOn : t.prejoin.cameraOff}
       pressed={settings.camOn}
-      onclick={() => (settings.camOn = !settings.camOn)}
+      onclick={() => void mediaActions.setCam(!settings.camOn)}
     >
       {#if settings.camOn}<Video size={22} />{:else}<VideoOff size={22} />{/if}
     </IconButton>
@@ -459,4 +509,4 @@
 </Sheet>
 
 <!-- Announcement region for screen readers (joins, leaves, knocks). -->
-<div aria-live="polite" class="sr-only"></div>
+<div aria-live="polite" class="sr-only">{session.announce}</div>

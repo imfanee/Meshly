@@ -9,3 +9,5 @@ export { MqttTransport } from './mqtt';
 export { deriveRoomKeys } from '../crypto/hkdf';
 export { generateIdentity, peerIdOf } from '../crypto/sign';
 export { randomRoomId, randomSecret } from '../room/link';
+export { localMedia } from '../media/localMedia';
+export { session, debugPeers } from '../../stores/session.svelte';

@@ -55,7 +55,12 @@ export class SignallingHub {
       this.transports.map((tr) => tr.connect(topic)),
     );
     for (const tr of this.transports) {
-      tr.onMessage((payload) => void this.handleInbound(payload));
+      tr.onMessage((payload) => {
+        void this.handleInbound(payload).catch((e) => {
+          this.events.onDrop?.('bad-json'); // unexpected throw, log via onError
+          console.error('signalling inbound error', e);
+        });
+      });
     }
     const anyOpen = this.transports.some((t) => t.status() === 'open');
     this.events.onStatus?.(anyOpen ? 'open' : 'degraded');

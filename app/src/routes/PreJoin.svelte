@@ -9,18 +9,44 @@
   import { session, startHost, startGuest } from '../lib/stores/session.svelte';
   import { persistName, settings } from '../lib/stores/settings.svelte';
   import { toast } from '../lib/stores/ui.svelte';
+  import { localMedia } from '../lib/core/media/localMedia';
   import { Mic, MicOff, Video, VideoOff, Copy, Share2 } from '@lucide/svelte';
+  import { onMount } from 'svelte';
 
   let name = $state(settings.displayName);
   let copied = $state(false);
+  let localStream = $state<MediaStream | null>(null);
+  let permissionDenied = $state(false);
 
   const isHost = $derived(session.role === 'host');
 
-  function toggleMic() {
-    settings.micOn = !settings.micOn;
+  onMount(() => {
+    const off = localMedia.onChange(
+      () => (localStream = localMedia.snapshot().stream),
+    );
+    localMedia
+      .acquire(settings.micOn, settings.camOn)
+      .then(() => (localStream = localMedia.snapshot().stream))
+      .catch(() => (permissionDenied = true));
+    return off;
+  });
+
+  function attachStream(node: HTMLVideoElement, stream: MediaStream | null) {
+    node.srcObject = stream;
+    return {
+      update(s: MediaStream | null) {
+        node.srcObject = s;
+      },
+    };
   }
-  function toggleCam() {
+
+  async function toggleMic() {
+    settings.micOn = !settings.micOn;
+    await localMedia.setMic(settings.micOn).catch(() => undefined);
+  }
+  async function toggleCam() {
     settings.camOn = !settings.camOn;
+    await localMedia.setCam(settings.camOn).catch(() => undefined);
   }
 
   async function copyLink() {
@@ -79,7 +105,22 @@
         border-border bg-surface-2"
       aria-label={t.prejoin.previewLabel}
     >
-      {#if settings.camOn}
+      {#if settings.camOn && localStream?.getVideoTracks().length}
+        <video
+          use:attachStream={localStream}
+          autoplay
+          playsinline
+          muted
+          class="h-full w-full object-cover"
+        ></video>
+      {:else if permissionDenied}
+        <div
+          class="flex h-full items-center justify-center px-4 text-center text-sm
+            text-danger"
+        >
+          {t.prejoin.permissionBlocked}
+        </div>
+      {:else if settings.camOn}
         <div
           class="flex h-full items-center justify-center text-sm text-text-muted"
         >

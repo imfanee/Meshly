@@ -42,6 +42,8 @@ export interface MembershipEvents {
   onKnocks?(knocks: PendingKnock[]): void;
   /** Everyone: roster/state changed. */
   onState?(state: RoomState): void;
+  /** A peer presented a valid ticket in hello (safe to connect WebRTC). */
+  onPeerVerified?(peerId: string): void;
   /** Everyone: kicked, ended or dropped out. */
   onLeave?(reason: 'removed' | 'ended'): void;
   onError?(message: string): void;
@@ -64,6 +66,8 @@ export class Membership {
   private hostSpki: string | null = null;
   private myTicket: SignedTicket | null = null;
   private disposed = false;
+  /** Peers that presented a valid ticket (doc 03 s.5). */
+  private verified = new Set<string>();
 
   constructor(
     private hub: SignallingHub,
@@ -78,6 +82,10 @@ export class Membership {
 
   get peerId(): string {
     return this.hub.peerId;
+  }
+  /** Whether a peer has presented a valid admission ticket. */
+  isVerified(peerId: string): boolean {
+    return this.verified.has(peerId);
   }
   get knocks(): PendingKnock[] {
     return [...this.pending.values()];
@@ -339,6 +347,10 @@ export class Membership {
     this.myTicket = ticket ?? null;
     this.hostSpki = signer.spki;
     this.state = st;
+    // The host is verified to us by the admit (host-only + thumbprint check).
+    this.verified.add(env.from);
+    this.hub.rememberPeer(env.from, signer.spki);
+    this.events.onPeerVerified?.(env.from);
     await this.hub.send(
       'hello',
       {
@@ -385,9 +397,12 @@ export class Membership {
       if (!this.state.roster.some((r) => r.peerId === env.from)) return;
     }
     this.hub.rememberPeer(env.from, signer.spki);
+    this.verified.add(env.from);
+    this.events.onPeerVerified?.(env.from);
   }
 
   private dropPeer(peerId: string): void {
+    this.verified.delete(peerId);
     if (this.role === 'host' && this.state) {
       const had = this.state.roster.some((r) => r.peerId === peerId);
       if (!had) return;

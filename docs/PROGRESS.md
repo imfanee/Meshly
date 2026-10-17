@@ -12,6 +12,14 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-17: T1.6 Peer manager and media
+
+- Changed: `core/media/localMedia.ts` (doc 04 mic/camera constraints, mic mute via track.enabled, camera off via replaceTrack(null) + stop, device switching, facingMode flip, onChange notifications); `core/webrtc/peer.ts` (W3C perfect negotiation, `ctl` data channel, fixed transceiver order audio then video, ICE batching 300 ms or 10 candidates, early-candidate buffering); `core/webrtc/peerManager.ts` (peer map, roster reconcile, bitrate policy per doc 04 s.3, wake lock); session store now routes sdp/ice to the PeerManager only for ticket-verified peers (buffered while hello verification is pending); Call.svelte renders real tiles (local preview plus remote video) with aria-live join/leave announcements; PreJoin shows a live camera preview.
+- Verified: `npm run check` clean; 32 unit tests pass; e2e 14/14 including the new three-way call (3 playing videos at all ends) and device-switch tests.
+- Found and fixed during e2e: `RTCSessionDescription` is a platform object so `canonicalJson` signed an empty `description` (now serialised explicitly); ICE candidates arriving before the remote description were dropped (now buffered); remotely-created transceivers start `recvonly` so `replaceTrack` alone never sent media on the answerer (direction now set to `sendrecv` when a track is bound); test-only bugs: `VITE_MAX_PARTICIPANTS` raised to 3 for e2e, the People panel toggle double-opened in the capacity test.
+- Deferred: `getStats` polling and the active-speaker analyser (doc 04 s.6-7) land with T1.7/T1.9; screen-share transceiver and the "tap to play sound" fallback are stubbed for T1.7.
+- Commit: 6aa7d3f
+
 ## 2026-10-17: T1.5 Lobby and admission
 
 - Changed: `core/room/state.ts` (RoomState + sign/verify per doc 03 s.6), `core/room/membership.ts` (knock loop every 5 s, host-here every 15 s, admit with ticket + roster + signed state, deny with reason, kick, end, bye, capacity via `maxParticipants`, lock that also denies pending knocks, lobby host-away detection). `core/signalling/index.ts` `makeTransports()` (dev relay wins, else Nostr + MQTT, all lazy-imported). Session store now connects the hub and drives membership; PreJoin "Start meeting"/"Ask to join" run the real flows; Room detects a persisted host key to restore host role on reload; Call people panel shows knocks with Admit/Deny, roster with Remove, and a Lock toggle; knock toast for the host. Playwright preview build now sets `VITE_DEV_RELAY_URL` + `VITE_MAX_PARTICIPANTS=2`.

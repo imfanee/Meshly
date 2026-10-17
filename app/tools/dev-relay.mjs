@@ -33,10 +33,15 @@ wss.on('connection', (ws) => {
       typeof m.data === 'string' &&
       m.data.length <= 32 * 1024
     ) {
+      let delivered = 0;
       for (const peer of topics.get(m.topic) ?? []) {
         if (peer !== ws && peer.readyState === 1) {
           peer.send(JSON.stringify({ t: 'msg', data: m.data }));
+          delivered++;
         }
+      }
+      if (process.env.RELAY_DEBUG) {
+        console.log(`pub len=${m.data.length} delivered=${delivered}`);
       }
     }
   });
