@@ -12,6 +12,13 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-17: T0.4 Spike: MQTT brokers
+
+- Changed: added `app/tools/spike-mqtt.mjs` (two clients per broker, 20 QoS-0 messages, delivery and latency); results in `docs/spikes/mqtt.md`; `VITE_MQTT_BROKERS` updated in `.env.example`, `app/.env` and `app/.env.production`.
+- Verified: 5 candidates probed. Kept broker.hivemq.com:8884 (20/20, 36 ms median), test.mosquitto.org:8081 (20/20, 45 ms) and broker.emqx.io:8084 (drops bursts above about 10 msgs/s, consistent across runs, kept as third fallback since the hub caps sends at 10/s). Dropped mqtt.eclipseprojects.io and broker.mqtt.cool (connack timeouts).
+- Open: hub should pace MQTT sends so fast join bursts do not trip emqx's cap; noted in the spike doc.
+- Commit: pending
+
 ## 2026-10-17: T0.3 Spike: Nostr relays
 
 - Changed: added `app/tools/spike-nostr.mjs` (two connections per relay, 20 kind-25050 events, measures OK acks, delivery and latency); results and decision in `docs/spikes/nostr.md`; `VITE_NOSTR_RELAYS` updated in `.env.example`, `app/.env` and `app/.env.production`.
