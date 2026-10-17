@@ -58,3 +58,15 @@ test('keyboard focus is visible on the start button', async ({ page }) => {
   await start.focus();
   await expect(start).toBeFocused();
 });
+
+test('offline reload still shows the app shell', async ({ page, context }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => navigator.serviceWorker?.ready);
+  await page.reload(); // first navigation under SW control
+  await context.setOffline(true);
+  await page.reload();
+  await expect(
+    page.getByRole('heading', { name: 'Private meetings, peer to peer.' }),
+  ).toBeVisible();
+  await context.setOffline(false);
+});

@@ -15,7 +15,14 @@
   import { persistName, settings } from '../lib/stores/settings.svelte';
   import { enterRoom } from '../lib/stores/session.svelte';
   import { toast } from '../lib/stores/ui.svelte';
-  import { ShieldCheck, MonitorSmartphone, Sparkles } from '@lucide/svelte';
+  import {
+    ShieldCheck,
+    MonitorSmartphone,
+    Sparkles,
+    Download,
+  } from '@lucide/svelte';
+  import { install, requestInstall } from '../lib/platform/install.svelte';
+  import InstallSheet from '../lib/ui/InstallSheet.svelte';
 
   let joinLink = $state('');
   let name = $state(settings.displayName);
@@ -61,7 +68,15 @@
   <header class="flex items-center gap-3 py-5">
     <MeshLogo size={36} />
     <span class="text-xl font-semibold tracking-tight">{t.appName}</span>
+    <span class="flex-1"></span>
+    {#if install.kind !== 'hidden'}
+      <Button variant="secondary" size="sm" onclick={requestInstall}>
+        <Download size={16} />
+        {t.install.button}
+      </Button>
+    {/if}
   </header>
+  <InstallSheet />
 
   <main
     class="flex flex-1 flex-col justify-center gap-10 py-8 md:grid md:grid-cols-2 md:items-center md:gap-16"

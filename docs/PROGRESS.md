@@ -12,6 +12,13 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-17: T1.2 PWA
+
+- Changed: generated the full icon set with `@vite-pwa/assets-generator` (pwa-64/192/512, maskable-512, apple-touch-180, favicon.ico) from `logo.svg`; `scripts/make-og.mjs` draws `og.png` (1200x630) and both manifest screenshots via sharp-composed SVG; manifest completed per doc 05 s.6 (id, start_url, display_override window-controls-overlay, shortcuts, categories, screenshots); `platform/install.svelte.ts` implements the full install decision tree (standalone / beforeinstallprompt / iOS Safari / iOS other / macOS Safari / hidden); `InstallSheet` guide UI; install button in the Home top bar; window-controls-overlay 32px drag title bar in `App.svelte`; SW update checks on launch plus every 60 minutes.
+- Verified: manifest JSON valid with 3 icons + 2 screenshots + display_override; e2e 7/7 including offline reload showing the app shell after SW activation; `npm run check` clean; build 26 precache entries.
+- Open: real Chrome "Install" producing a borderless desktop window needs a human DevTools check on a desktop browser (manual matrix row 1); screenshots are branded placeholders until real UI captures exist.
+- Commit: pending
+
 ## 2026-10-17: T1.1 Design system and shell
 
 - Changed: full `en-GB` string table; `core/room/link.ts` (room link codec with strict regexes); history router (`lib/router.svelte.ts`); rune stores `session`, `ui`, `settings`; theme module (system/light/dark, `[data-theme]` on any element so the call view can pin dark); UI kit: Button, IconButton, Input, Dialog (native `<dialog>`), Sheet, Toaster, Tooltip, Tabs, Footer, MeshLogo; screens: Home (hero, start card, join link, features, how-it-works), Room container (unsupported/incomplete-link states), PreJoin, Lobby, Call chrome (auto-hiding top bar, stage, desktop and mobile control bar with More sheet, side panel), PostCall, About, Privacy and Terms (doc-07 drafts), NotFound; PWA update toast wired via `virtual:pwa-register`.

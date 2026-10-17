@@ -11,7 +11,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       includeAssets: [
-        'favicon.svg',
+        'icons/favicon.ico',
+        'icons/logo.svg',
         'icons/*.png',
         'fonts/*.woff2',
         'sounds/*',
@@ -30,13 +31,35 @@ export default defineConfig({
         categories: ['business', 'productivity', 'social'],
         shortcuts: [{ name: 'New meeting', url: '/?new=1' }],
         icons: [
-          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           {
-            src: 'icons/maskable-512.png',
+            src: 'icons/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: 'icons/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: 'icons/maskable-icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
+          },
+        ],
+        screenshots: [
+          {
+            src: 'icons/screenshot-wide.png',
+            sizes: '1280x800',
+            type: 'image/png',
+            form_factor: 'wide',
+          },
+          {
+            src: 'icons/screenshot-narrow.png',
+            sizes: '720x1280',
+            type: 'image/png',
+            form_factor: 'narrow',
           },
         ],
       },

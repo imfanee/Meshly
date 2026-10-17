@@ -13,12 +13,38 @@
   import Terms from './routes/Terms.svelte';
   import NotFound from './routes/NotFound.svelte';
 
+  import { initInstall } from './lib/platform/install.svelte';
+  import MeshLogo from './lib/ui/MeshLogo.svelte';
+  import { onMount } from 'svelte';
+
   initTheme();
+  initInstall();
+
+  // Installed-window title bar (window-controls-overlay), doc 05 section 6.
+  let wco = $state(false);
+  onMount(() => {
+    const mq = window.matchMedia('(display-mode: window-controls-overlay)');
+    wco = mq.matches;
+    const on = () => (wco = mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  });
 
   $effect(() => {
     applyTheme(settings.theme);
   });
 </script>
+
+{#if wco}
+  <div
+    class="fixed left-0 right-0 top-0 z-[60] flex h-8 items-center gap-2 px-3"
+    style="-webkit-app-region: drag; padding-left: env(titlebar-area-x, 12px);
+      width: env(titlebar-area-width, 100%); background: var(--surface)"
+  >
+    <MeshLogo size={18} />
+    <span class="text-xs font-medium text-text-muted">Meshly</span>
+  </div>
+{/if}
 
 {#if router.route.name === 'home'}
   <Home />
