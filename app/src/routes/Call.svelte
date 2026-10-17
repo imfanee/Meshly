@@ -22,6 +22,11 @@
     shareScreen,
     stopShare,
     reportWatching,
+    sendFile,
+    acceptFile,
+    declineFile,
+    cancelFile,
+    saveFile,
     sendChat,
     sendReact,
     setHand,
@@ -463,6 +468,52 @@
               class="flex-1 space-y-3 overflow-y-auto pr-1"
               aria-label="Chat messages"
             >
+              {#each session.files as f (f.id + f.peerId)}
+                <li
+                  class="rounded-lg border border-border px-3 py-2 text-xs"
+                  data-file={f.id}
+                >
+                  <span class="font-medium">{f.name}</span>
+                  <span class="text-text-muted">
+                    ({Math.ceil(f.size / 1024)} KB, {f.direction === 'in'
+                      ? 'from'
+                      : 'to'}
+                    {session.roster.find((r) => r.peerId === f.peerId)?.name ??
+                      'peer'})</span
+                  >
+                  {#if f.state === 'streaming'}
+                    <span class="ml-1 text-text-muted"
+                      >{Math.round((f.progress / f.size) * 100)}%</span
+                    >
+                    <button
+                      class="ml-2 text-danger"
+                      onclick={() => void cancelFile(f.id)}>Cancel</button
+                    >
+                  {:else if f.state === 'offered' && f.direction === 'in'}
+                    <button
+                      class="ml-2 rounded bg-brand px-2 py-0.5 text-[#04211d]"
+                      onclick={() => void acceptFile(f.id, f.peerId)}
+                      >Accept</button
+                    >
+                    <button
+                      class="ml-1 text-text-muted"
+                      onclick={() => void declineFile(f.id, f.peerId)}
+                      >Decline</button
+                    >
+                  {:else if f.state === 'offered'}
+                    <span class="ml-1 text-text-muted">waiting…</span>
+                  {:else if f.state === 'done' && f.direction === 'in'}
+                    <button
+                      class="ml-2 rounded bg-brand px-2 py-0.5 text-[#04211d]"
+                      onclick={() => void saveFile(f)}>Save</button
+                    >
+                  {:else if f.state === 'done'}
+                    <span class="ml-1 text-text-muted">sent</span>
+                  {:else if f.state === 'failed'}
+                    <span class="ml-1 text-danger">failed</span>
+                  {/if}
+                </li>
+              {/each}
               {#each session.chat as m (m.id)}
                 <li>
                   <div class="flex items-baseline gap-2">
@@ -486,6 +537,22 @@
               {/each}
             </ul>
             <form class="mt-3 flex gap-2" onsubmit={submitChat}>
+              <label
+                class="cursor-pointer rounded-lg border border-border px-3
+                  py-2 text-sm hover:bg-surface-2"
+                title="Send a file"
+              >
+                <input
+                  type="file"
+                  class="sr-only"
+                  onchange={(e) => {
+                    const f = (e.target as HTMLInputElement).files?.[0];
+                    if (f) void sendFile(f);
+                    (e.target as HTMLInputElement).value = '';
+                  }}
+                />
+                📎
+              </label>
               <input
                 class="min-w-0 flex-1 rounded-lg border border-border
                   bg-surface-2 px-3 py-2 text-sm

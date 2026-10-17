@@ -21,6 +21,8 @@ export interface PeerEvents {
   onIceState?(peerId: string, state: RTCIceConnectionState): void;
   onCtlMessage?(peerId: string, data: unknown): void;
   onCtlOpen?(peerId: string): void;
+  /** Non-ctl inbound channels (file:<id>) for the transfer manager. */
+  onDataChannel?(peerId: string, channel: RTCDataChannel): void;
   /** Escalation/restart counters or TURN availability changed. */
   onDiagnostics?(peerId: string): void;
 }
@@ -88,6 +90,7 @@ export class Peer {
     };
     this.pc.ondatachannel = (e) => {
       if (e.channel.label === 'ctl') this.attachCtl(e.channel);
+      else this.events.onDataChannel?.(this.peerId, e.channel);
     };
     if (isOfferer) {
       this.attachCtl(this.pc.createDataChannel('ctl', { ordered: true }));
@@ -237,6 +240,11 @@ export class Peer {
         void this.escalate();
       }
     }, config.iceEscalateMs);
+  }
+
+  /** Open an ordered data channel (file:<id> for transfers). */
+  createChannel(label: string): RTCDataChannel {
+    return this.pc.createDataChannel(label, { ordered: true });
   }
 
   /** External restart trigger (network change, watchdog). */

@@ -26,6 +26,7 @@ interface MeshlyTest {
     drops: string[];
     lobbyState: string;
     roster: { name: string; peerId: string }[];
+    files: { id: string; state: string }[];
   };
   debugPeers(): unknown[];
   debugInjectCtl(peerId: string, msg: unknown): void;
@@ -36,6 +37,8 @@ interface MeshlyTest {
     active?: boolean;
   } | null;
   debugRestartIce(peerId: string): void;
+  sendFile(file: File): Promise<void>;
+  fileBlobOf(id: string): Blob | undefined;
   localMedia: {
     listDevices(): Promise<MediaDeviceInfo[]>;
     switchAudioDevice(id: string): Promise<void>;

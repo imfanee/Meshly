@@ -176,3 +176,10 @@ Format:
 - Verified: `npm run check` clean; reconnect e2e passes (forced `restartIce` returns the pair to `connected`).
 - Open: manual Wi-Fi to 4G switch remains a live check on real devices.
 - Commit: pending
+
+## 2026-10-18: T2.6 File transfer
+
+- Changed: `core/files/fileTransfer.ts` (file-offer/accept/decline/cancel ctl, `file:<id>` ordered channel, 16 KB chunks with 1 MB backpressure, final SHA-256 verify); `Peer.createChannel` + `onDataChannel`; session `sendFile/acceptFile/declineFile/cancelFile/saveFile` with a lazily loaded manager and a frame queue so early chunks are not dropped; received blobs live outside reactive state (a Svelte proxy breaks Blob methods); chat panel gains a paperclip picker and transfer cards (Accept/Decline, progress, Cancel, Save, failed).
+- Verified: `npm run check` clean; 50 MB file e2e passes with matching SHA-256.
+- Open: OPFS path for >25 MB receivers deferred (memory assembly works but is heavier on constrained devices).
+- Commit: pending

@@ -16,4 +16,6 @@ export {
   debugInjectCtl,
   debugEncoding,
   debugRestartIce,
+  sendFile,
+  fileBlobOf,
 } from '../../stores/session.svelte';

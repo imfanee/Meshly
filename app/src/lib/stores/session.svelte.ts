@@ -9,6 +9,7 @@ import type { RoomLink } from '../core/room/link';
 import type { RoomState, RosterEntry } from '../core/room/state';
 import type { PendingKnock } from '../core/room/membership';
 import type { Envelope } from '../core/signalling/envelope';
+import type { TransferState } from '../core/files/fileTransfer';
 import { Membership } from '../core/room/membership';
 import { SignallingHub, makeTransports } from '../core/signalling';
 import { joinRoomKeys } from '../core/room/room';
@@ -76,6 +77,8 @@ export const session = $state({
   handUp: false,
   /** Host asked me to mute; show the consent banner. */
   muteAsk: false,
+  /** In-flight file transfers (doc 06 s.2). */
+  files: [] as TransferState[],
 });
 
 // Non-reactive internals (CryptoKeys must not be Svelte-proxied).
@@ -138,6 +141,9 @@ export function resetSession(): void {
   seenCtl.clear();
   session.handUp = false;
   session.muteAsk = false;
+  session.files = [];
+  fileBlobs.clear();
+  _files = null;
   slotGranted = false;
   pendingSlot = false;
   grantedSlots.clear();
@@ -205,6 +211,18 @@ async function initPeerManager(): Promise<PeerManager> {
       session.announce = `${name} left`;
     },
     onCtl: (peerId, msg) => handleCtl(peerId, msg),
+    onDataChannel: (peerId, ch) => {
+      // The transfer module lazy-loads; queue frames until it is ready so
+      // no chunks are dropped between channel open and handler attach.
+      const queue: MessageEvent[] = [];
+      ch.onmessage = (e) => queue.push(e);
+      void initFiles().then((ft) => {
+        if (!ft) return;
+        ft.onDataChannel(peerId, ch);
+        const handler = ch.onmessage;
+        for (const e of queue) handler?.call(ch, e);
+      });
+    },
   });
   if (relayServers.length) pm.enableRelayOnly(relayServers);
   peerManager = pm;
@@ -270,6 +288,10 @@ function handleCtl(peerId: string, msg: CtlMessage): void {
   } else if (msg.t === 'slot-deny' && pendingSlot && peerId === hostPeerId()) {
     pendingSlot = false;
     toast('No free camera slots right now');
+  } else if (msg.t.startsWith('file-')) {
+    void initFiles().then((ft) =>
+      ft?.onCtl(peerId, msg as { t: string; b?: Record<string, unknown> }),
+    );
   } else if (msg.t === 'slot-revoke' && peerId === hostPeerId()) {
     // Host reassigned the slot; camera off without consent needed.
     slotGranted = false;
@@ -677,6 +699,79 @@ export function debugEncoding(peerId: string): RTCRtpEncodingParameters | null {
   )?.peers.get(peerId);
   const sender = p?.pc.getTransceivers()[1]?.sender;
   return sender?.getParameters().encodings?.[0] ?? null;
+}
+
+// ---- File transfer (doc 06 s.2), lazy-loaded on first use -----------------
+
+let _files: import('../core/files/fileTransfer').FileTransfer | null = null;
+async function initFiles() {
+  if (_files || !peerManager) return _files;
+  const { FileTransfer } = await import('../core/files/fileTransfer');
+  _files = new FileTransfer(
+    (peerId, label) => peerManager!.createChannel(peerId, label),
+    (peerId, b) =>
+      peerManager!.sendCtlTo(peerId, {
+        t: b.t as string,
+        id: crypto.randomUUID(),
+        ts: Date.now(),
+        b: b.b as Record<string, unknown>,
+      }),
+    {
+      onUpdate(t) {
+        if (t.blob) fileBlobs.set(t.id, t.blob);
+        const { blob: _blob, ...ui } = t;
+        void _blob;
+        const i = session.files.findIndex(
+          (f) => f.id === t.id && f.peerId === t.peerId,
+        );
+        if (i >= 0) session.files[i] = { ...ui };
+        else session.files.push({ ...ui });
+      },
+    },
+  );
+  return _files;
+}
+
+export async function sendFile(file: File): Promise<void> {
+  const ft = await initFiles();
+  if (!ft || !peerManager) return;
+  if (file.size > 100 * 1024 * 1024) {
+    toast('Files are limited to 100 MB');
+    return;
+  }
+  ft.offer(
+    file,
+    session.peers.map((p) => p.peerId),
+  );
+}
+
+export async function acceptFile(id: string, peerId: string): Promise<void> {
+  (await initFiles())?.accept(id, peerId);
+}
+export async function declineFile(id: string, peerId: string): Promise<void> {
+  (await initFiles())?.decline(id, peerId);
+}
+export async function cancelFile(id: string): Promise<void> {
+  (await initFiles())?.cancel(id);
+}
+
+// Blobs live outside reactive state (a Svelte proxy breaks Blob methods).
+// eslint-disable-next-line svelte/prefer-svelte-reactivity -- raw blob store
+const fileBlobs = new Map<string, Blob>();
+export function fileBlobOf(id: string): Blob | undefined {
+  return fileBlobs.get(id);
+}
+
+export async function saveFile(t: TransferState): Promise<void> {
+  const blob = fileBlobs.get(t.id);
+  if (!blob) return;
+  const { FileTransfer } = await import('../core/files/fileTransfer');
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = FileTransfer.safeName(t.name);
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 /** Test hook: force an ICE restart toward a peer (T2.5 reconnect e2e). */

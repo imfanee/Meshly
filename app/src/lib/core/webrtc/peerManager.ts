@@ -61,6 +61,8 @@ export interface PeerManagerEvents {
   onPeerLeft?(peerId: string): void;
   /** Non-media ctl traffic (chat, reactions, …) for the session to handle. */
   onCtl?(peerId: string, msg: CtlMessage): void;
+  /** Non-ctl inbound channel (file:<id>) for the transfer manager. */
+  onDataChannel?(peerId: string, channel: RTCDataChannel): void;
 }
 
 /** ctl channel message shape, doc 03 section 8: { t, id, ts, b }. */
@@ -147,8 +149,16 @@ export class PeerManager {
         p?.ctl?.send(JSON.stringify(this.mediaMsg()));
       },
       onCtlMessage: (peerId, data) => this.onCtl(peerId, data),
+      onDataChannel: (peerId, ch) => this.events.onDataChannel?.(peerId, ch),
       onDiagnostics: () => this.notify(),
     };
+  }
+
+  /** Ordered data channel for file:<id> transfers (doc 06 s.2). */
+  createChannel(peerId: string, label: string): RTCDataChannel {
+    const p = this.peers.get(peerId);
+    if (!p) throw new Error(`no peer ${peerId}`);
+    return p.createChannel(label);
   }
 
   private hand = false;

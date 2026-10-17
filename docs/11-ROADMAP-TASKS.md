@@ -33,7 +33,7 @@ Estimated effort for one agent with reviews: Phase 0 to 1 about 3 to 4 weeks of 
 - [x] **T2.3 Video slots** (6 max) with slot requests and host reassignment. *Accept:* e2e video slot test passes.
 - [x] **T2.4 Bitrate policy** (doc 04 section 3) and off-screen pause. *Accept:* `getStats` shows bitrates within policy at 2, 4 and 6 senders.
 - [x] **T2.5 Reconnect robustness:** ICE restart on network change, peer timeout cleanup, relay reconnection. *Accept:* e2e reconnect test passes; manual Wi-Fi to 4G switch keeps the call.
-- [ ] **T2.6 File transfer** (doc 06 section 2). *Accept:* 50 MB file transfers between two contexts with matching SHA-256.
+- [x] **T2.6 File transfer** (doc 06 section 2). *Accept:* 50 MB file transfers between two contexts with matching SHA-256.
 - [ ] **T2.7 Settings dialog** complete (devices, appearance, advanced). *Accept:* all settings persist where specified.
 
 ## Phase 3: recording
