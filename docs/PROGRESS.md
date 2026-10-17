@@ -12,6 +12,13 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-17: T0.3 Spike: Nostr relays
+
+- Changed: added `app/tools/spike-nostr.mjs` (two connections per relay, 20 kind-25050 events, measures OK acks, delivery and latency); results and decision in `docs/spikes/nostr.md`; `VITE_NOSTR_RELAYS` updated in `.env.example`, `app/.env` and `app/.env.production`.
+- Verified: 8 candidates probed. Kept relay.primal.net, nos.lol, nostr.mom (20/20, median 137 to 152 ms) and nostr.oxtr.dev (rate-limited only above its threshold; our test burst exceeds the app's 10/s cap). Dropped damus (rejects kind 25050), nostr.band and nostr.bg (connectivity), offchain.pub (loss, 333 ms median).
+- Open: none.
+- Commit: pending
+
 ## 2026-10-17: T0.2 Scaffold app
 
 - Changed: created `app/` with Vite 8 + Svelte 5.57 + TypeScript 6 strict; `build.outDir: '../web'`, `emptyOutDir: true`; Tailwind v4 via `@tailwindcss/vite` with doc-05 design tokens bound through `@theme inline`; ESLint 10 flat config (tseslint + eslint-plugin-svelte + prettier), Prettier + svelte-check; Vitest 5 (own `vitest.config.ts`, node env); Playwright 1.64 (Chromium with fake-media flags, builds then previews); `vite-plugin-pwa` 2 (`registerType: 'prompt'`, manifest per doc 05 section 6); `scripts/copy-infra.mjs` prebuild copying `infra/cpanel/.htaccess`, `assets.htaccess`, `api/turn.php` and the Inter woff2 from `@fontsource-variable/inter` into `public/`; `src/config.ts` reading all `VITE_*` env with fallbacks; `app/.env` (dev, git-ignored) and `app/.env.production` (tracked, public values only); npm scripts `dev`, `build`, `preview`, `check`, `test`, `test:e2e`, `deploy`, `deploy:dry`; mesh-mark `logo.svg`; minimal `App.svelte` placeholder pending T1.1.
