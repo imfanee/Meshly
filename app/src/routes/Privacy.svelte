@@ -59,8 +59,16 @@
       Recording can only be done by the meeting host, on their own device.
       Everyone is notified while recording is on.
     </p>
+    <h2 class="mt-6 font-semibold">Honest limitations</h2>
+    <p class="mt-2 text-text-muted">
+      Meshly verifies people by the host admitting them, not by accounts, so
+      anyone holding the link can ask to join. Public relays can observe that
+      encrypted traffic exists for a room, and when, but not its contents.
+    </p>
     <p class="mt-6 text-text-muted">
-      Contact: via
+      Contact:
+      <a href="mailto:imfanee@gmail.com" class="underline">imfanee@gmail.com</a>
+      ·
       <a
         href="https://github.com/imfanee"
         target="_blank"

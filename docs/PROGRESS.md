@@ -12,6 +12,13 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-18: T1.10 Content pages
+
+- Changed: About gained the architecture explainer (link-secret crypto, encrypted signalling over Nostr/MQTT, STUN-first with own TURN on demand, full mesh, one tiny server script) plus "What we do not have"; Privacy kept the doc-07 draft and gained the honest-limitations section (link holders can knock, relays see traffic exists) and an email contact; Terms gained the licence clause matching the new LICENCE file (free to use hosted, permission + intact footer for self-hosting, contact for modifications) plus email and phone contact.
+- Verified: `npm run check` clean; smoke e2e 7/7 covers all three routes and footer credit.
+- Open: copy awaits Faisal's review gate before launch.
+- Commit: pending
+
 ## 2026-10-18: T1.9 Staged ICE
 
 - Changed: `core/webrtc/turn.ts` (TurnCredentials: validates the turn.php shape, caches until 5 min before expiry, 60 s backoff on 4xx/5xx/network errors); `peer.ts` escalation state machine per doc 04 s.4 (Stage 1 STUN-only, escalate on `iceConnectionState === 'failed'`, on descriptions set + 8 s not connected (`VITE_ICE_ESCALATE_MS`), or on a remote `ice` batch with `relay: true` and a newer restart generation; Stage 2 fetches creds, `setConfiguration` adds TURN, `restartIce()`; disconnected for 4 s restarts, still unconnected 8 s later escalates; 10 s after a failed local escalation we send `ice {relay: true}` so the remote escalates too; while TURN is down the peer warns via `turnUnavailable` and retries every 30 s); `PeerManager` polls `getStats` into rtt/loss/quality/link per peer and exposes restarts/escalations/turnDown on PeerInfo; relay-only mode (`settings.relayOnly`) makes `initPeerManager` fetch TURN creds first and refuse the join when the endpoint is down rather than leaking the IP; tiles show an amber "Relay unavailable, retrying" alert while a needed escalation cannot get credentials; the mobile More sheet gained "Hide my IP address" plus a "Connection details" readout (state, link, RTT, loss, restarts, escalations).
