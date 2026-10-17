@@ -46,7 +46,13 @@ export class DevRelayTransport implements SignallingTransport {
         }
       };
       ws.onclose = () => {
-        if (this.state !== 'closed') this.state = 'degraded';
+        if (this.state === 'closed') return;
+        this.state = 'degraded';
+        this.ws = null;
+        // Reconnect with backoff while the transport stays open (T2.5).
+        setTimeout(() => {
+          if (this.state === 'degraded') void this.connect(this.topic);
+        }, 2_000);
       };
     });
   }

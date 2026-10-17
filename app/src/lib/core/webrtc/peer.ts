@@ -239,6 +239,11 @@ export class Peer {
     }, config.iceEscalateMs);
   }
 
+  /** External restart trigger (network change, watchdog). */
+  requestRestart(): void {
+    this.restartIce();
+  }
+
   private restartIce(): void {
     this.iceGen += 1;
     this.restarts += 1;

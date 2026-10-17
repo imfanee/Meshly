@@ -169,3 +169,10 @@ Format:
 - Verified: `npm run check` clean; bitrate e2e passes (guest sender params show 1,500 kbps / scale 1 / 30 fps at two senders).
 - Open: 4- and 6-sender tiers need more e2e contexts than the cap allows; policy math is table-driven so tiers are covered by the same code path.
 - Commit: pending
+
+## 2026-10-18: T2.5 Reconnect robustness
+
+- Changed: `Peer.requestRestart()` public restart; `online` event restarts any peer not in `connected`; peer timeout cleanup closes a pc stuck disconnected/failed for 30 s (re-establishes via hello/sdp while roster keeps the seat); devRelay reconnects with a 2 s backoff while open (Nostr pool and MQTT already reconnect natively: SimplePool per-relay, mqtt `reconnectPeriod: 5s`).
+- Verified: `npm run check` clean; reconnect e2e passes (forced `restartIce` returns the pair to `connected`).
+- Open: manual Wi-Fi to 4G switch remains a live check on real devices.
+- Commit: pending

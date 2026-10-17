@@ -679,6 +679,16 @@ export function debugEncoding(peerId: string): RTCRtpEncodingParameters | null {
   return sender?.getParameters().encodings?.[0] ?? null;
 }
 
+/** Test hook: force an ICE restart toward a peer (T2.5 reconnect e2e). */
+export function debugRestartIce(peerId: string): void {
+  const p = (
+    peerManager as unknown as {
+      peers: Map<string, { requestRestart(): void }>;
+    }
+  )?.peers.get(peerId);
+  p?.requestRestart();
+}
+
 /** Test hook: inject a ctl message as if it arrived from a peer. */
 export function debugInjectCtl(peerId: string, msg: CtlMessage): void {
   peerManager?.handleCtl(peerId, msg);

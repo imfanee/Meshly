@@ -29,6 +29,13 @@ interface MeshlyTest {
   };
   debugPeers(): unknown[];
   debugInjectCtl(peerId: string, msg: unknown): void;
+  debugEncoding(peerId: string): {
+    maxBitrate?: number;
+    scaleResolutionDownBy?: number;
+    maxFramerate?: number;
+    active?: boolean;
+  } | null;
+  debugRestartIce(peerId: string): void;
   localMedia: {
     listDevices(): Promise<MediaDeviceInfo[]>;
     switchAudioDevice(id: string): Promise<void>;

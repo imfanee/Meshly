@@ -84,6 +84,13 @@ export class PeerManager {
     private media: LocalMedia,
     private events: PeerManagerEvents,
   ) {
+    // Back online after a network change: restart peers that did not recover.
+    this.onlineHandler = () => {
+      for (const p of this.peers.values()) {
+        if (p.pc.connectionState !== 'connected') p.requestRestart();
+      }
+    };
+    window.addEventListener('online', this.onlineHandler);
     // Media toggles/switches just update LocalMedia; this listener pushes the
     // new tracks to every peer (replaceTrack + direction fix).
     media.onChange(() => void this.applyLocalTracks());
@@ -448,6 +455,8 @@ export class PeerManager {
     peerMedia.delete(peerId);
     peerLinks.delete(peerId);
     peerWatches.delete(peerId);
+    screenMids.delete(peerId);
+    this.disconnectedSince.delete(peerId);
     this.events.onPeerLeft?.(peerId);
     this.notify();
   }
@@ -468,8 +477,27 @@ export class PeerManager {
     this.statsTimer = setInterval(() => void this.pollStats(), 2_000);
   }
 
+  /** Peer disconnected past this many ms gets its pc closed (doc 04 s.4
+   * cleanup); it re-establishes via hello/sdp if still in the roster. */
+  private static PEER_TIMEOUT_MS = 30_000;
+  private disconnectedSince = new Map<string, number>();
+  private onlineHandler: (() => void) | null = null;
+
   private async pollStats(): Promise<void> {
     for (const p of this.peers.values()) {
+      // Peer timeout cleanup (T2.5): a peer stuck disconnected for 30 s
+      // is closed; a fresh hello/sdp pair re-creates it if it returns.
+      const s = p.pc.connectionState;
+      if (s === 'disconnected' || s === 'failed') {
+        const since = this.disconnectedSince.get(p.peerId) ?? Date.now();
+        this.disconnectedSince.set(p.peerId, since);
+        if (Date.now() - since > PeerManager.PEER_TIMEOUT_MS) {
+          this.removePeer(p.peerId);
+          continue;
+        }
+      } else {
+        this.disconnectedSince.delete(p.peerId);
+      }
       try {
         const stats = await p.pc.getStats();
         let relayed = false;
@@ -550,6 +578,8 @@ export class PeerManager {
 
   dispose(): void {
     void this.stopShare();
+    if (this.onlineHandler)
+      window.removeEventListener('online', this.onlineHandler);
     if (this.statsTimer) clearInterval(this.statsTimer);
     this.statsTimer = null;
     activeSpeaker.dispose();
