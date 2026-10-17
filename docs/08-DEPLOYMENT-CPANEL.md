@@ -19,7 +19,7 @@ Meshly deploys as static files plus one PHP script to a cPanel subdomain. The ag
   "username": "cpaneluser",
   "privateKeyPath": ".secrets/cpanel_key",
   "password": null,
-  "remoteDir": "/home/cpaneluser/meshly.example.com",
+  "remoteDir": "/home/cpaneluser/meshly.softautonomi.com",
   "homeDir": "/home/cpaneluser"
 }
 ```
@@ -64,12 +64,12 @@ Agent implements; dependencies `ssh2-sftp-client` (and `basic-ftp` for FTPS mode
 ## 5. Smoke tests after deploy
 
 ```bash
-curl -sI https://meshly.example.com/ | grep -iE "200|content-security-policy|strict-transport"
-curl -sI https://meshly.example.com/sw.js | grep -i "cache-control: no-cache"
-curl -sI https://meshly.example.com/manifest.webmanifest | grep -i "application/manifest+json"
-curl -s  https://meshly.example.com/r/abcdefghij | grep -q "<div id=\"app\"" && echo "SPA fallback ok"
-curl -s -o /dev/null -w "%{http_code}\n" https://meshly.example.com/api/turn.php   # expect 403 (no browser headers) or 503 (not configured)
-curl -s -o /dev/null -w "%{http_code}\n" https://meshly.example.com/meshly-config.php  # expect 404
+curl -sI https://meshly.softautonomi.com/ | grep -iE "200|content-security-policy|strict-transport"
+curl -sI https://meshly.softautonomi.com/sw.js | grep -i "cache-control: no-cache"
+curl -sI https://meshly.softautonomi.com/manifest.webmanifest | grep -i "application/manifest+json"
+curl -s  https://meshly.softautonomi.com/r/abcdefghij | grep -q "<div id=\"app\"" && echo "SPA fallback ok"
+curl -s -o /dev/null -w "%{http_code}\n" https://meshly.softautonomi.com/api/turn.php   # expect 403 (no browser headers) or 503 (not configured)
+curl -s -o /dev/null -w "%{http_code}\n" https://meshly.softautonomi.com/meshly-config.php  # expect 404
 ```
 
 Then a real browser check: Chrome DevTools, Application, Manifest (installable, no errors), Service workers (activated), and a two-device call.
