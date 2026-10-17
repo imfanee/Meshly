@@ -27,6 +27,8 @@ export interface PeerInfo {
   camOn: boolean;
   /** Raised hand, from the ctl media message. */
   hand: boolean;
+  /** Currently sharing a screen, from the ctl media message. */
+  screen: boolean;
   link: LinkKind;
   quality: LinkQuality;
   /** Round-trip time in ms, -1 unknown. */
@@ -42,8 +44,10 @@ export interface PeerInfo {
 /** What a peer last told us about its mic/camera via the ctl channel. */
 const peerMedia = new Map<
   string,
-  { micOn: boolean; camOn: boolean; hand: boolean }
+  { micOn: boolean; camOn: boolean; hand: boolean; screen: boolean }
 >();
+/** Remote peer -> mid of its screen-share transceiver (from `tracks` ctl). */
+const screenMids = new Map<string, string>();
 const peerLinks = new Map<
   string,
   { link: LinkKind; quality: LinkQuality; rttMs: number; lossPct: number }
@@ -101,6 +105,7 @@ export class PeerManager {
       micOn: peerMedia.get(p.peerId)?.micOn ?? true,
       camOn: peerMedia.get(p.peerId)?.camOn ?? true,
       hand: peerMedia.get(p.peerId)?.hand ?? false,
+      screen: peerMedia.get(p.peerId)?.screen ?? false,
       link: peerLinks.get(p.peerId)?.link ?? 'unknown',
       quality: peerLinks.get(p.peerId)?.quality ?? 'unknown',
       rttMs: peerLinks.get(p.peerId)?.rttMs ?? -1,
@@ -148,7 +153,7 @@ export class PeerManager {
       b: {
         audio: snap.audio?.enabled !== false && !!snap.audio,
         video: !!snap.video,
-        screen: false,
+        screen: !!this.screenTrack,
         hand: this.hand,
       },
     };
@@ -167,7 +172,15 @@ export class PeerManager {
         micOn: m.b.audio !== false,
         camOn: m.b.video === true,
         hand: m.b.hand === true,
+        screen: m.b.screen === true,
       });
+      this.notify();
+      return;
+    }
+    if (m.t === 'tracks' && m.b) {
+      // Sharer tells us which mid is the screen transceiver; null clears.
+      if (typeof m.b.mid === 'string') screenMids.set(peerId, m.b.mid);
+      else screenMids.delete(peerId);
       this.notify();
       return;
     }
@@ -194,6 +207,105 @@ export class PeerManager {
     for (const p of this.peers.values()) {
       if (p.ctl?.readyState === 'open') p.ctl.send(s);
     }
+  }
+
+  /** Send a ctl message to one peer (share-req, mute-req, …). */
+  sendCtlTo(peerId: string, msg: CtlMessage): boolean {
+    const p = this.peers.get(peerId);
+    if (p?.ctl?.readyState !== 'open') return false;
+    p.ctl.send(JSON.stringify(msg));
+    return true;
+  }
+
+  // ---- Screen share (doc 06 s.3) ------------------------------------------
+
+  private screenTrack: MediaStreamTrack | null = null;
+  private screenSenders = new Map<string, RTCRtpSender>();
+
+  get sharing(): boolean {
+    return !!this.screenTrack;
+  }
+
+  /** Start sharing: one sendonly video transceiver per peer, contentHint
+   * 'detail', bitrate per doc 04, then a `tracks` ctl message with the mid. */
+  async startShare(): Promise<MediaStream> {
+    const gdm = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: true,
+    });
+    this.screenTrack = gdm.getVideoTracks()[0];
+    this.screenTrack.contentHint = 'detail';
+    const track = this.screenTrack;
+    track.onended = () => void this.stopShare();
+    for (const p of this.peers.values()) {
+      const tr = p.pc.addTransceiver(track, { direction: 'sendonly' });
+      this.screenSenders.set(p.peerId, tr.sender);
+      const relayed = peerLinks.get(p.peerId)?.link === 'relayed';
+      const params = tr.sender.getParameters();
+      params.encodings = [{ maxBitrate: relayed ? 1_000_000 : 1_500_000 }];
+      void tr.sender.setParameters(params).catch(() => undefined);
+    }
+    this.broadcastMediaState();
+    // The mid is assigned once renegotiation applies; wait, then tell peers.
+    void this.announceScreenMids();
+    return gdm;
+  }
+
+  private async announceScreenMids(): Promise<void> {
+    for (let i = 0; i < 50; i++) {
+      let allSet = true;
+      for (const p of this.peers.values()) {
+        const tr = p.pc
+          .getTransceivers()
+          .find((t) => t.sender === this.screenSenders.get(p.peerId));
+        if (!tr?.mid) allSet = false;
+      }
+      if (allSet) break;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    this.sendCtlAll({
+      t: 'tracks',
+      id: crypto.randomUUID(),
+      ts: Date.now(),
+      b: { mid: this.midOfShare() },
+    });
+  }
+
+  private midOfShare(): string | null {
+    const first = [...this.screenSenders.values()][0];
+    if (!first) return null;
+    const p = this.peers.get([...this.screenSenders.keys()][0]);
+    return p?.pc.getTransceivers().find((t) => t.sender === first)?.mid ?? null;
+  }
+
+  /** Stop sharing: drop the track, clear the mid, tell everyone. */
+  async stopShare(): Promise<void> {
+    if (!this.screenTrack) return;
+    for (const sender of this.screenSenders.values()) {
+      sender.replaceTrack(null).catch(() => undefined);
+    }
+    this.screenTrack.stop();
+    this.screenTrack = null;
+    this.screenSenders.clear();
+    this.broadcastMediaState();
+    this.sendCtlAll({
+      t: 'tracks',
+      id: crypto.randomUUID(),
+      ts: Date.now(),
+      b: { mid: null },
+    });
+  }
+
+  /** The screen track a remote peer is sharing, if any. */
+  screenStreamOf(peerId: string): MediaStream | null {
+    const mid = screenMids.get(peerId);
+    if (!mid) return null;
+    const p = this.peers.get(peerId);
+    const tr = p?.pc.getTransceivers().find((t) => t.mid === mid);
+    const track = tr?.receiver.track;
+    return track && track.readyState === 'live'
+      ? new MediaStream([track])
+      : null;
   }
 
   /** Existing member side: create PC after verified hello; answerer waits. */
@@ -396,6 +508,7 @@ export class PeerManager {
   }
 
   dispose(): void {
+    void this.stopShare();
     if (this.statsTimer) clearInterval(this.statsTimer);
     this.statsTimer = null;
     activeSpeaker.dispose();

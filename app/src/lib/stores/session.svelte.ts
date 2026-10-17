@@ -236,6 +236,12 @@ function handleCtl(peerId: string, msg: CtlMessage): void {
       ts: Date.now(),
     });
     session.announce = `${nameOf(peerId)} reacted ${b.emoji}`;
+  } else if (
+    msg.t === 'share-req' ||
+    msg.t === 'share-ok' ||
+    msg.t === 'share-busy'
+  ) {
+    handleShareCtl(peerId, msg);
   }
 }
 
@@ -474,6 +480,84 @@ export function sendReact(emoji: string): void {
 export function setHand(up: boolean): void {
   session.handUp = up;
   peerManager?.setHand(up);
+}
+
+// ---- Screen share (doc 06 s.3): host gates via ctl share-req/ok/busy -------
+
+export function screenStreamOf(peerId: string): MediaStream | null {
+  return peerManager?.screenStreamOf(peerId) ?? null;
+}
+export function localScreenStream(): MediaStream | null {
+  const t = (peerManager as unknown as { screenTrack: MediaStreamTrack | null })
+    ?.screenTrack;
+  return t ? new MediaStream([t]) : null;
+}
+
+/** Any remote peer currently sharing (from their media ctl message). */
+export function sharerId(): string | null {
+  return session.peers.find((p) => p.screen)?.peerId ?? null;
+}
+
+async function doShare(): Promise<void> {
+  if (!peerManager || peerManager.sharing) return;
+  await peerManager.startShare();
+  session.announce = 'You are sharing your screen';
+}
+
+/** Share: host shares directly; guests ask the host first. */
+export async function shareScreen(): Promise<void> {
+  if (!peerManager) return;
+  const hostId = session.roster.find((r) => r.role === 'host')?.peerId;
+  if (session.role === 'host' || !hostId || hostId === session.peerId) {
+    await doShare();
+    return;
+  }
+  if (session.peers.some((p) => p.screen)) {
+    toast(`${nameOf(sharerId() ?? '')} is sharing. Ask them to stop first.`);
+    return;
+  }
+  const ok = peerManager.sendCtlTo(hostId, {
+    t: 'share-req',
+    id: crypto.randomUUID(),
+    ts: Date.now(),
+    b: {},
+  });
+  if (!ok) {
+    toast('Cannot reach the host to request sharing');
+    return;
+  }
+  pendingShare = Date.now();
+}
+
+let pendingShare = 0;
+function handleShareCtl(peerId: string, msg: CtlMessage): void {
+  const hostId = session.roster.find((r) => r.role === 'host')?.peerId;
+  if (msg.t === 'share-req' && session.role === 'host') {
+    // Auto-grant when nobody is sharing; otherwise refuse with a name.
+    const sharer = session.peers.find((p) => p.screen);
+    peerManager?.sendCtlTo(peerId, {
+      t: sharer ? 'share-busy' : 'share-ok',
+      id: msg.id,
+      ts: Date.now(),
+      b: sharer ? { name: sharer.name } : {},
+    });
+    return;
+  }
+  if (msg.t === 'share-ok' && pendingShare && peerId === hostId) {
+    pendingShare = 0;
+    void doShare();
+    return;
+  }
+  if (msg.t === 'share-busy' && pendingShare && peerId === hostId) {
+    pendingShare = 0;
+    const name = (msg.b as { name?: string } | undefined)?.name ?? 'Someone';
+    toast(`${name} is sharing. Ask them to stop first.`);
+  }
+}
+
+export function stopShare(): void {
+  void peerManager?.stopShare();
+  session.announce = 'You stopped sharing';
 }
 
 /** Test hook: inject a ctl message as if it arrived from a peer. */

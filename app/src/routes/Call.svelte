@@ -17,6 +17,10 @@
     hostActions,
     mediaActions,
     peerStreamOf,
+    screenStreamOf,
+    localScreenStream,
+    shareScreen,
+    stopShare,
     sendChat,
     sendReact,
     setHand,
@@ -122,6 +126,16 @@
   );
   onMount(() => (localStream = localMedia.snapshot().stream));
 
+  /** Bind an unproxied MediaStream to a video element. */
+  function attachStream(node: HTMLVideoElement, stream: MediaStream | null) {
+    node.srcObject = stream;
+    return {
+      update(s: MediaStream | null) {
+        node.srcObject = s;
+      },
+    };
+  }
+
   // Chat unread badge: count messages while the panel is on another tab.
   let seenChat = $state(0);
   $effect(() => {
@@ -143,6 +157,26 @@
   const liveReactions = $derived(
     session.reactions.filter((r) => now - r.ts < 4_000),
   );
+
+  let localScreen = $state<MediaStream | null>(null);
+  let remoteScreen = $state<MediaStream | null>(null);
+  const sharingPeer = $derived(session.peers.find((p) => p.screen));
+  const sharing = $derived(!!sharingPeer || !!localScreen);
+  const canShare = $derived(
+    typeof navigator !== 'undefined' &&
+      !!navigator.mediaDevices?.getDisplayMedia &&
+      window.matchMedia('(pointer: fine)').matches,
+  );
+  $effect(() => {
+    // Re-read whenever peer screen flags or local share state may change.
+    void session.peers.map((p) => p.screen).join();
+    const id = setInterval(() => {
+      localScreen = localScreenStream();
+      const s = sharingPeer;
+      remoteScreen = s ? screenStreamOf(s.peerId) : null;
+    }, 500);
+    return () => clearInterval(id);
+  });
 
   let draft = $state('');
   function submitChat(e: Event) {
@@ -212,7 +246,74 @@
 
   <!-- Stage: grid or speaker layout (doc 05 4.4) -->
   <main class="relative flex-1 overflow-hidden p-2">
-    {#if layout === 'speaker' && session.peers.length > 0}
+    {#if sharing}
+      <!-- Screen layout (doc 05): share large + contain, cameras filmstrip. -->
+      <div class="flex h-full flex-col gap-2">
+        <div
+          class="relative min-h-0 flex-1 overflow-hidden rounded-xl bg-black"
+        >
+          {#if remoteScreen}
+            <video
+              use:attachStream={remoteScreen}
+              autoplay
+              playsinline
+              class="h-full w-full object-contain"
+              data-screen={sharingPeer?.peerId}
+            ></video>
+            <span
+              class="absolute left-2 top-2 rounded-md bg-black/60 px-2 py-0.5
+                text-xs text-white">{sharingPeer?.name} is sharing</span
+            >
+          {:else if localScreen}
+            <span
+              class="absolute left-2 top-2 z-10 rounded-md bg-amber-500/90
+                px-2 py-1 text-xs font-medium text-white"
+            >
+              You are sharing your screen
+            </span>
+            <video
+              use:attachStream={localScreen}
+              autoplay
+              playsinline
+              muted
+              class="absolute bottom-2 right-2 h-28 w-48 rounded-lg
+                border-2 border-amber-500 object-cover"
+              aria-label="Your screen preview"
+            ></video>
+          {/if}
+        </div>
+        <div class="flex gap-2 overflow-x-auto pb-1">
+          <div class="w-36 shrink-0">
+            <Tile
+              peerId={session.peerId ?? 'me'}
+              name={settings.displayName || t.call.you}
+              stream={localStream}
+              camOn={settings.camOn && !!localStream?.getVideoTracks().length}
+              micOn={settings.micOn}
+              hand={session.handUp}
+              self
+            />
+          </div>
+          {#each session.peers as p (p.peerId)}
+            <div class="w-36 shrink-0">
+              <Tile
+                peerId={p.peerId}
+                name={p.name}
+                stream={peerStreamOf(p.peerId)}
+                camOn={p.camOn && p.hasVideo}
+                micOn={p.micOn}
+                hand={p.hand}
+                turnDown={p.turnDown}
+                link={p.link}
+                quality={p.quality}
+                canModerate={isHost}
+                onRemove={() => hostActions.kick(p.peerId)}
+              />
+            </div>
+          {/each}
+        </div>
+      </div>
+    {:else if layout === 'speaker' && session.peers.length > 0}
       {@const large =
         session.peers.find((p) => p.peerId === (pinned ?? activeId)) ??
         session.peers[0]}
@@ -511,12 +612,15 @@
       {#if settings.camOn}<Video size={22} />{:else}<VideoOff size={22} />{/if}
     </IconButton>
     <span class="hidden sm:contents">
-      <IconButton
-        label={t.call.shareScreen}
-        onclick={() => toast(t.call.shareScreen)}
-      >
-        <MonitorUp size={22} />
-      </IconButton>
+      {#if canShare}
+        <IconButton
+          label={localScreen ? 'Stop sharing' : t.call.shareScreen}
+          pressed={!!localScreen}
+          onclick={() => (localScreen ? stopShare() : void shareScreen())}
+        >
+          <MonitorUp size={22} />
+        </IconButton>
+      {/if}
       <IconButton
         label={session.handUp ? t.call.lowerHand : t.call.raiseHand}
         pressed={session.handUp}

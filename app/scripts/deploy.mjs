@@ -123,7 +123,11 @@ if (secrets.protocol === 'ftps') {
     close: () => c.close(),
     list: (dir) =>
       c.list(dir === '/' ? '' : dir).then((l) =>
-        l.map((e) => ({ name: e.name, type: e.isDirectory ? 2 : 1, size: e.size })),
+        l.map((e) => ({
+          name: e.name,
+          type: e.isDirectory ? 2 : 1,
+          size: e.size,
+        })),
       ),
     ensureDir: (dir) => c.ensureDir(dir),
     upload: (local, remote) => c.uploadFrom(local, remote),
@@ -149,7 +153,11 @@ if (secrets.protocol === 'ftps') {
     list: async (dir) => {
       try {
         const l = await c.list(dir);
-        return l.map((e) => ({ name: e.name, type: e.type === 'd' ? 2 : 1, size: e.size }));
+        return l.map((e) => ({
+          name: e.name,
+          type: e.type === 'd' ? 2 : 1,
+          size: e.size,
+        }));
       } catch {
         return [];
       }
@@ -180,14 +188,15 @@ say(
 await client.connect();
 
 let remoteManifest = { files: {}, releases: [] };
-if (remoteDir === '/' || true) {
-  try {
-    const tmp = join(root, 'app', 'node_modules', '.cache-deploy-manifest.json');
-    await client.download(tmp, `${remoteDir === '/' ? '' : remoteDir}/${MANIFEST}`);
-    remoteManifest = JSON.parse(readFileSync(tmp, 'utf8'));
-  } catch {
-    /* no manifest yet */
-  }
+try {
+  const tmp = join(root, 'app', 'node_modules', '.cache-deploy-manifest.json');
+  await client.download(
+    tmp,
+    `${remoteDir === '/' ? '' : remoteDir}/${MANIFEST}`,
+  );
+  remoteManifest = JSON.parse(readFileSync(tmp, 'utf8'));
+} catch {
+  /* no manifest yet */
 }
 
 const remoteList = await listRemote(remoteDir).catch(() => []);
@@ -208,15 +217,21 @@ for (const f of localFiles) {
 
 // Hashed-asset retention: keep the last two releases' assets.
 const assetReleases = remoteManifest.releases ?? [];
-const oldReleases = assetReleases.slice(0, Math.max(0, assetReleases.length - KEEP_RELEASES));
+const oldReleases = assetReleases.slice(
+  0,
+  Math.max(0, assetReleases.length - KEEP_RELEASES),
+);
 const localSet = new Set(localFiles.map((f) => f.rel));
 for (const r of remoteList) {
   const rel = r.path.startsWith(remoteDir === '/' ? '/' : `${remoteDir}/`)
     ? r.path.slice(remoteDir === '/' ? 1 : remoteDir.length + 1)
     : r.path;
   if (localSet.has(rel) || rel === MANIFEST) continue;
-  const hashed = EARLY.test(rel) && /[-._][0-9A-Za-z_-]{6,}\.[a-z0-9]+$/i.test(rel);
-  const old = oldReleases.includes(rel.split('/').pop()?.split('.').slice(0, -1).join('.'));
+  const hashed =
+    EARLY.test(rel) && /[-._][0-9A-Za-z_-]{6,}\.[a-z0-9]+$/i.test(rel);
+  const old = oldReleases.includes(
+    rel.split('/').pop()?.split('.').slice(0, -1).join('.'),
+  );
   if (hashed || old) toDelete.push(rel);
 }
 
@@ -244,14 +259,19 @@ for (const f of toUpload) {
   vlog(`+ ${f.rel}`);
 }
 for (const d of toDelete) {
-  await client.remove(`${remoteDir === '/' ? '' : remoteDir}/${d}`).catch(() => undefined);
+  await client
+    .remove(`${remoteDir === '/' ? '' : remoteDir}/${d}`)
+    .catch(() => undefined);
 }
 
 // Write the new manifest last of all.
 const manifestData = {
-  version: JSON.parse(readFileSync(join(root, 'app', 'package.json'), 'utf8')).version,
+  version: JSON.parse(readFileSync(join(root, 'app', 'package.json'), 'utf8'))
+    .version,
   deployedAt: new Date().toISOString(),
-  files: Object.fromEntries(localFiles.map((f) => [f.rel, { sha256: f.sha256, size: f.size }])),
+  files: Object.fromEntries(
+    localFiles.map((f) => [f.rel, { sha256: f.sha256, size: f.size }]),
+  ),
   releases: [release, ...assetReleases].slice(0, 5),
 };
 const tmpM = join(root, 'app', 'node_modules', '.cache-deploy-write.json');
@@ -279,7 +299,10 @@ function walk(dir, out = []) {
 async function uploadConfigOnly(cfg) {
   const src = join(root, '.secrets', 'meshly-config.php');
   if (!existsSync(src)) die('missing .secrets/meshly-config.php');
-  if (!cfg.homeDir) die('sftp.json has no homeDir (account is jailed); upload meshly-config.php manually via cPanel File Manager.');
+  if (!cfg.homeDir)
+    die(
+      'sftp.json has no homeDir (account is jailed); upload meshly-config.php manually via cPanel File Manager.',
+    );
   say('--config-only: uploading meshly-config.php to homeDir');
   if (dryRun) {
     say(`  + ${cfg.homeDir}/meshly-config.php (600)`);
@@ -296,7 +319,9 @@ async function uploadConfigOnly(cfg) {
     secureOptions: cfg.secureOptions ?? {},
   });
   await c.uploadFrom(src, `${cfg.homeDir}/meshly-config.php`);
-  await c.send(`SITE CHMOD 600 ${cfg.homeDir}/meshly-config.php`).catch(() => undefined);
+  await c
+    .send(`SITE CHMOD 600 ${cfg.homeDir}/meshly-config.php`)
+    .catch(() => undefined);
   c.close();
   say('done: meshly-config.php uploaded');
 }
