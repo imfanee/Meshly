@@ -10,6 +10,7 @@
   import { persistName, settings } from '../lib/stores/settings.svelte';
   import { toast } from '../lib/stores/ui.svelte';
   import { localMedia } from '../lib/core/media/localMedia';
+  import { activeSpeaker } from '../lib/core/media/activeSpeaker';
   import { Mic, MicOff, Video, VideoOff, Copy, Share2 } from '@lucide/svelte';
   import { onMount } from 'svelte';
 
@@ -20,15 +21,25 @@
 
   const isHost = $derived(session.role === 'host');
 
+  let micLevel = $state(0);
   onMount(() => {
     const off = localMedia.onChange(
       () => (localStream = localMedia.snapshot().stream),
     );
+    const offSpeaker = activeSpeaker.subscribe(
+      () => (micLevel = activeSpeaker.micLevel),
+    );
     localMedia
       .acquire(settings.micOn, settings.camOn)
-      .then(() => (localStream = localMedia.snapshot().stream))
+      .then(() => {
+        localStream = localMedia.snapshot().stream;
+        activeSpeaker.watchLocal(localStream);
+      })
       .catch(() => (permissionDenied = true));
-    return off;
+    return () => {
+      off();
+      offSpeaker();
+    };
   });
 
   function attachStream(node: HTMLVideoElement, stream: MediaStream | null) {
@@ -137,6 +148,19 @@
         class="absolute bottom-2 left-2 rounded-md bg-black/60 px-2 py-0.5
           text-xs text-white">{name.trim() || t.call.you}</span
       >
+      {#if settings.micOn}
+        <span
+          class="absolute bottom-2 right-2 h-1.5 w-16 overflow-hidden
+            rounded-full bg-white/20"
+          aria-hidden="true"
+        >
+          <span
+            class="block h-full rounded-full bg-brand transition-[width]
+              duration-100"
+            style="width: {Math.min(100, micLevel * 400)}%"
+          ></span>
+        </span>
+      {/if}
     </div>
 
     <div class="flex items-center justify-center gap-3">

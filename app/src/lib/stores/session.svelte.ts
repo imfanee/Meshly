@@ -152,6 +152,7 @@ function initPeerManager(): PeerManager {
   });
   peerManager = pm;
   void pm.acquireWakeLock();
+  pm.startStats();
   return pm;
 }
 
@@ -344,10 +345,12 @@ export const mediaActions = {
   async setMic(on: boolean) {
     settings.micOn = on;
     await localMedia.setMic(on);
+    peerManager?.broadcastMediaState();
   },
   async setCam(on: boolean) {
     settings.camOn = on;
     await localMedia.setCam(on);
+    peerManager?.broadcastMediaState();
   },
   async flipCamera() {
     await localMedia.flipCamera();

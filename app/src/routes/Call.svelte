@@ -19,6 +19,8 @@
     peerStreamOf,
   } from '../lib/stores/session.svelte';
   import { localMedia } from '../lib/core/media/localMedia';
+  import { activeSpeaker } from '../lib/core/media/activeSpeaker';
+  import Tile from '../lib/ui/Tile.svelte';
   import { settings } from '../lib/stores/settings.svelte';
   import { ui, togglePanel, toast } from '../lib/stores/ui.svelte';
   import {
@@ -37,6 +39,8 @@
     Link2,
     Circle,
     Lock,
+    LayoutGrid,
+    RectangleHorizontal,
   } from '@lucide/svelte';
   import { onMount } from 'svelte';
 
@@ -48,6 +52,26 @@
   let leaveMenu = $state(false);
   let copied = $state(false);
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Grid on desktop, speaker on mobile (doc 05). */
+  let layout = $state<'grid' | 'speaker'>(
+    window.innerWidth < 640 ? 'speaker' : 'grid',
+  );
+  let pinned = $state<string | null>(null);
+  let soundBlocked = $state(false);
+  let speakingMuted = $state(false);
+  let activeId = $state<string | null>(null);
+
+  const tileCount = $derived(session.peers.length + 1);
+  const gridCols = $derived(
+    tileCount <= 1 ? 1 : tileCount === 2 ? 2 : tileCount <= 4 ? 2 : 3,
+  );
+
+  $effect(() =>
+    activeSpeaker.subscribe(() => {
+      activeId = activeSpeaker.active;
+      speakingMuted = !settings.micOn && activeSpeaker.micLevel > 0.03;
+    }),
+  );
 
   const timer = $derived(
     `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(
@@ -88,21 +112,22 @@
     else void leaveCall();
   }
 
-  /** Bind an unproxied MediaStream to a video element. */
-  function attachStream(node: HTMLVideoElement, stream: MediaStream | null) {
-    node.srcObject = stream;
-    return {
-      update(s: MediaStream | null) {
-        node.srcObject = s;
-      },
-    };
-  }
-
   let localStream = $state<MediaStream | null>(null);
   onMount(() =>
     localMedia.onChange(() => (localStream = localMedia.snapshot().stream)),
   );
   onMount(() => (localStream = localMedia.snapshot().stream));
+
+  // Unmuted remote videos can be paused by autoplay policy; offer a tap fix.
+  $effect(() => {
+    void session.peers.length;
+    const id = setTimeout(() => {
+      soundBlocked = [
+        ...document.querySelectorAll<HTMLVideoElement>('video:not([muted])'),
+      ].some((v) => v.paused);
+    }, 800);
+    return () => clearTimeout(id);
+  });
 
   // Toast on new knocks so the host notices without the panel open.
   let seenKnocks = $state(0);
@@ -152,67 +177,97 @@
     </Tooltip>
   </header>
 
-  <!-- Stage: local preview plus one tile per remote peer -->
+  <!-- Stage: grid or speaker layout (doc 05 4.4) -->
   <main class="relative flex-1 overflow-hidden p-2">
-    <div
-      class="grid h-full gap-2"
-      style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-        align-content: center"
-    >
-      <div
-        class="relative aspect-video w-full overflow-hidden rounded-xl
-          border border-border bg-surface"
-        aria-label={settings.displayName || t.call.you}
-      >
-        {#if settings.camOn && localStream}
-          <video
-            use:attachStream={localStream}
-            autoplay
-            playsinline
-            muted
-            class="h-full w-full object-cover"
-          ></video>
-        {:else}
-          <div class="flex h-full items-center justify-center text-text-muted">
-            <span
-              class="flex h-16 w-16 items-center justify-center rounded-full
-                bg-surface-2 text-xl font-semibold"
-            >
-              {(settings.displayName || 'Y').slice(0, 1).toUpperCase()}
-            </span>
-          </div>
-        {/if}
-        <span
-          class="absolute bottom-2 left-2 flex items-center gap-1.5 rounded-md
-            bg-black/60 px-2 py-0.5 text-xs text-white"
-        >
-          {#if !settings.micOn}<MicOff size={12} />{/if}
-          {settings.displayName || t.call.you}
-          {t.call.you}
-        </span>
-      </div>
-      {#each session.peers as p (p.peerId)}
-        <div
-          class="relative aspect-video w-full overflow-hidden rounded-xl
-            border border-border bg-surface"
-          aria-label={p.name}
-        >
-          <video
-            use:attachStream={peerStreamOf(p.peerId)}
-            autoplay
-            playsinline
-            class="h-full w-full object-cover"
-            data-peer={p.peerId}
-          ></video>
-          <span
-            class="absolute bottom-2 left-2 flex items-center gap-1.5
-              rounded-md bg-black/60 px-2 py-0.5 text-xs text-white"
-          >
-            {p.name}
-          </span>
+    {#if layout === 'speaker' && session.peers.length > 0}
+      {@const large =
+        session.peers.find((p) => p.peerId === (pinned ?? activeId)) ??
+        session.peers[0]}
+      {@const strip = session.peers.filter((p) => p !== large)}
+      <div class="flex h-full flex-col gap-2">
+        <div class="min-h-0 flex-1">
+          <Tile
+            peerId={large.peerId}
+            name={large.name}
+            stream={peerStreamOf(large.peerId)}
+            camOn={large.camOn && large.hasVideo}
+            micOn={large.micOn}
+            link={large.link}
+            quality={large.quality}
+            large
+            canModerate={isHost}
+            onRemove={() => hostActions.kick(large.peerId)}
+          />
         </div>
-      {/each}
-    </div>
+        <div class="flex gap-2 overflow-x-auto pb-1">
+          <div class="w-36 shrink-0">
+            <Tile
+              peerId={session.peerId ?? 'me'}
+              name={settings.displayName || t.call.you}
+              stream={localStream}
+              camOn={settings.camOn && !!localStream?.getVideoTracks().length}
+              micOn={settings.micOn}
+              self
+            />
+          </div>
+          {#each strip as p (p.peerId)}
+            <div class="w-36 shrink-0">
+              <Tile
+                peerId={p.peerId}
+                name={p.name}
+                stream={peerStreamOf(p.peerId)}
+                camOn={p.camOn && p.hasVideo}
+                micOn={p.micOn}
+                link={p.link}
+                quality={p.quality}
+                canModerate={isHost}
+                onRemove={() => hostActions.kick(p.peerId)}
+              />
+            </div>
+          {/each}
+        </div>
+      </div>
+    {:else}
+      <div
+        class="grid h-full gap-2"
+        style="grid-template-columns: repeat({gridCols}, minmax(0, 1fr));
+          align-content: center"
+      >
+        <Tile
+          peerId={session.peerId ?? 'me'}
+          name={settings.displayName || t.call.you}
+          stream={localStream}
+          camOn={settings.camOn && !!localStream?.getVideoTracks().length}
+          micOn={settings.micOn}
+          self
+        />
+        {#each session.peers as p (p.peerId)}
+          <Tile
+            peerId={p.peerId}
+            name={p.name}
+            stream={peerStreamOf(p.peerId)}
+            camOn={p.camOn && p.hasVideo}
+            micOn={p.micOn}
+            link={p.link}
+            quality={p.quality}
+            canModerate={isHost}
+            onRemove={() => hostActions.kick(p.peerId)}
+          />
+        {/each}
+      </div>
+    {/if}
+    {#if soundBlocked}
+      <button
+        class="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-full
+          bg-brand px-4 py-2 text-sm font-medium text-[#04211d] shadow-lg"
+        onclick={() => {
+          document
+            .querySelectorAll<HTMLVideoElement>('video:not([muted])')
+            .forEach((v) => void v.play().catch(() => undefined));
+          soundBlocked = false;
+        }}>{t.call.sound}</button
+      >
+    {/if}
   </main>
 
   <!-- Side panel: 360px column on desktop, full-screen overlay on mobile. -->
@@ -335,6 +390,13 @@
     class="relative z-20 flex items-center justify-center gap-2 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 sm:gap-3"
     aria-label="Call controls"
   >
+    {#if speakingMuted}
+      <span
+        class="absolute -top-8 left-1/2 -translate-x-1/2 rounded-full
+          bg-danger px-3 py-1 text-xs font-medium text-white"
+        >{t.call.mutedHint}</span
+      >
+    {/if}
     <IconButton
       label={settings.micOn ? t.prejoin.micOn : t.prejoin.micOff}
       pressed={settings.micOn}
@@ -369,11 +431,30 @@
       >
         <SmilePlus size={22} />
       </IconButton>
-      <IconButton label={t.call.people} onclick={() => togglePanel('people')}>
+      <IconButton
+        label={t.call.people}
+        class="relative"
+        onclick={() => togglePanel('people')}
+      >
         <Users size={22} />
+        {#if session.knocks.length > 0}
+          <span
+            class="absolute -right-1 -top-1 flex h-5 min-w-5 items-center
+              justify-center rounded-full bg-brand px-1 text-xs font-semibold
+              text-[#04211d]">{session.knocks.length}</span
+          >
+        {/if}
       </IconButton>
       <IconButton label={t.call.notes} onclick={() => togglePanel('notes')}>
         <NotebookPen size={22} />
+      </IconButton>
+      <IconButton
+        label={layout === 'grid' ? t.call.speakerLayout : t.call.gridLayout}
+        onclick={() => (layout = layout === 'grid' ? 'speaker' : 'grid')}
+      >
+        {#if layout === 'grid'}<RectangleHorizontal
+            size={22}
+          />{:else}<LayoutGrid size={22} />{/if}
       </IconButton>
     </span>
     <span class="relative">
@@ -381,6 +462,7 @@
         label={t.call.chat}
         pressed={ui.panel === 'chat'}
         onclick={() => togglePanel('chat')}
+        class="relative"
       >
         <MessageSquare size={22} />
       </IconButton>
@@ -474,10 +556,24 @@
     <button
       class="flex items-center gap-3 rounded-lg px-3 py-3 text-left
         hover:bg-surface-2"
-      onclick={() => toast(t.call.switchCamera)}
+      onclick={() => {
+        void mediaActions.flipCamera();
+        moreOpen = false;
+      }}
     >
       <Video size={20} />
       {t.call.switchCamera}
+    </button>
+    <button
+      class="flex items-center gap-3 rounded-lg px-3 py-3 text-left
+        hover:bg-surface-2"
+      onclick={() => {
+        layout = layout === 'grid' ? 'speaker' : 'grid';
+        moreOpen = false;
+      }}
+    >
+      <LayoutGrid size={20} />
+      {layout === 'grid' ? t.call.speakerLayout : t.call.gridLayout}
     </button>
     <button
       class="flex items-center gap-3 rounded-lg px-3 py-3 text-left

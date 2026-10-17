@@ -109,6 +109,8 @@ export const t = {
     settings: 'Settings',
     about: 'About',
     switchCamera: 'Switch camera',
+    sound: 'Tap to turn on sound',
+    mutedHint: 'You are muted',
   },
 
   chat: {

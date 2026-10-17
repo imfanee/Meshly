@@ -12,6 +12,14 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-17: T1.7 Call UI
+
+- Changed: `lib/ui/Tile.svelte` (video or avatar with initials on a peerId-derived colour, name label, mic-off icon, connection dot green/amber/red, speaking ring, host remove menu); `core/media/activeSpeaker.ts` (shared AudioContext, per-peer analyser, 100 ms RMS, 300 ms speak threshold, 1.5 s dwell; also feeds the PreJoin mic meter and the "You are muted" hint); `PeerManager` now polls `getStats` every 2 s for link kind (direct/relayed) and quality (doc 04 s.6 thresholds) and relays mic/cam state over the `ctl` channel (`k:'media'`); Call stage has grid (1/2/3-column rules) and speaker (large + filmstrip) layouts with a toggle in the desktop control bar and the mobile More sheet; People and Chat buttons carry badges; camera flip wired in More; "Tap to turn on sound" overlay appears when autoplay blocks a remote video.
+- Verified: `npm run check` clean; 32 unit tests; e2e 14/14 (3-way call, device switch, capacity, admission).
+- Debug notes: capacity test initially failed because a stale `web/` build (maxParticipants=12) was being served by a reused preview; the real signal was the host keeping Guest C in pending rather than denying. Fixed by rebuilding with the e2e env and disabling trace on the four-context capacity spec (trace zip corrupted under load).
+- Open: pin on tiles is placeholder-only; raised-hand badge awaits T1.8 ctl messages; screen layout auto-switches on share in T2.1.
+- Commit: pending
+
 ## 2026-10-17: T1.6 Peer manager and media
 
 - Changed: `core/media/localMedia.ts` (doc 04 mic/camera constraints, mic mute via track.enabled, camera off via replaceTrack(null) + stop, device switching, facingMode flip, onChange notifications); `core/webrtc/peer.ts` (W3C perfect negotiation, `ctl` data channel, fixed transceiver order audio then video, ICE batching 300 ms or 10 candidates, early-candidate buffering); `core/webrtc/peerManager.ts` (peer map, roster reconcile, bitrate policy per doc 04 s.3, wake lock); session store now routes sdp/ice to the PeerManager only for ticket-verified peers (buffered while hello verification is pending); Call.svelte renders real tiles (local preview plus remote video) with aria-live join/leave announcements; PreJoin shows a live camera preview.

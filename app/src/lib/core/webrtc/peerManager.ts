@@ -8,8 +8,12 @@ import { Peer, type PeerEvents } from './peer';
 import type { SignallingHub } from '../signalling/hub';
 import type { Envelope } from '../signalling/envelope';
 import type { LocalMedia } from '../media/localMedia';
+import { activeSpeaker } from '../media/activeSpeaker';
 import type { RosterEntry } from '../room/state';
 import { config } from '../../../config';
+
+export type LinkKind = 'direct' | 'relayed' | 'unknown';
+export type LinkQuality = 'good' | 'fair' | 'poor' | 'unknown';
 
 export interface PeerInfo {
   peerId: string;
@@ -17,7 +21,16 @@ export interface PeerInfo {
   state: RTCPeerConnectionState;
   hasAudio: boolean;
   hasVideo: boolean;
+  /** Remote-reported media state over the ctl channel. */
+  micOn: boolean;
+  camOn: boolean;
+  link: LinkKind;
+  quality: LinkQuality;
 }
+
+/** What a peer last told us about its mic/camera via the ctl channel. */
+const peerMedia = new Map<string, { micOn: boolean; camOn: boolean }>();
+const peerLinks = new Map<string, { link: LinkKind; quality: LinkQuality }>();
 
 export interface PeerManagerEvents {
   onPeersChanged(peers: PeerInfo[]): void;
@@ -30,6 +43,7 @@ export class PeerManager {
   private rosterNames = new Map<string, string>();
   private wakeLock: { release(): Promise<void> } | null = null;
   private visHandler: (() => void) | null = null;
+  private statsTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private hub: SignallingHub,
@@ -57,6 +71,10 @@ export class PeerManager {
       state: p.pc.connectionState,
       hasAudio: p.stream.getAudioTracks().length > 0,
       hasVideo: p.stream.getVideoTracks().length > 0,
+      micOn: peerMedia.get(p.peerId)?.micOn ?? true,
+      camOn: peerMedia.get(p.peerId)?.camOn ?? true,
+      link: peerLinks.get(p.peerId)?.link ?? 'unknown',
+      quality: peerLinks.get(p.peerId)?.quality ?? 'unknown',
     }));
   }
 
@@ -68,19 +86,54 @@ export class PeerManager {
     return {
       send: (type, body, to) =>
         this.hub.send(type, body, to, true).catch(() => undefined),
-      onTrack: () => this.notify(),
+      onTrack: (peerId, stream) => {
+        activeSpeaker.watch(peerId, stream);
+        this.notify();
+      },
       onConnectionState: (peerId, state) => {
         if (state === 'connected') this.events.onPeerJoined?.(peerId);
         this.notify();
+      },
+      onCtlOpen: (peerId) => {
+        const p = this.peers.get(peerId);
+        const snap = this.media.snapshot();
+        // Tell the peer our mic/cam state so their tiles match reality.
+        p?.ctl?.send(
+          JSON.stringify({
+            k: 'media',
+            micOn: snap.audio?.enabled !== false && !!snap.audio,
+            camOn: !!snap.video,
+          }),
+        );
       },
       onCtlMessage: (peerId, data) => this.onCtl(peerId, data),
     };
   }
 
   private onCtl(peerId: string, data: unknown): void {
-    // ctl channel protocol arrives in T1.8; keep the hook minimal.
-    void peerId;
-    void data;
+    if (!data || typeof data !== 'object') return;
+    const m = data as { k?: string; micOn?: boolean; camOn?: boolean };
+    if (m.k === 'media') {
+      peerMedia.set(peerId, {
+        micOn: m.micOn !== false,
+        camOn: m.camOn === true,
+      });
+      this.notify();
+    }
+    // chat, reactions and hand messages arrive in T1.8
+  }
+
+  /** Push our mic/cam state to every open ctl channel (after toggles). */
+  broadcastMediaState(): void {
+    const snap = this.media.snapshot();
+    const msg = JSON.stringify({
+      k: 'media',
+      micOn: snap.audio?.enabled !== false && !!snap.audio,
+      camOn: !!snap.video,
+    });
+    for (const p of this.peers.values()) {
+      if (p.ctl?.readyState === 'open') p.ctl.send(msg);
+    }
   }
 
   /** Existing member side: create PC after verified hello; answerer waits. */
@@ -162,9 +215,12 @@ export class PeerManager {
   removePeer(peerId: string): void {
     const p = this.peers.get(peerId);
     if (!p) return;
+    activeSpeaker.unwatch(peerId);
     p.stream.getTracks().forEach((t) => t.stop());
     p.close();
     this.peers.delete(peerId);
+    peerMedia.delete(peerId);
+    peerLinks.delete(peerId);
     this.events.onPeerLeft?.(peerId);
     this.notify();
   }
@@ -178,6 +234,68 @@ export class PeerManager {
       if (!ids.has(peerId)) this.removePeer(peerId);
     }
     this.notify();
+  }
+
+  /** Poll getStats every 2 s: candidate pair type, RTT, loss (doc 04 s.6). */
+  startStats(): void {
+    this.statsTimer = setInterval(() => void this.pollStats(), 2_000);
+  }
+
+  private async pollStats(): Promise<void> {
+    for (const p of this.peers.values()) {
+      try {
+        const stats = await p.pc.getStats();
+        let relayed = false;
+        let rttMs = -1;
+        let lossPct = -1;
+        stats.forEach((r) => {
+          if (
+            r.type === 'candidate-pair' &&
+            (r as unknown as { nominated?: boolean }).nominated
+          ) {
+            rttMs =
+              ((r as unknown as { currentRoundTripTime?: number })
+                .currentRoundTripTime ?? 0) * 1000;
+            const local = stats.get(
+              (r as unknown as { localCandidateId: string }).localCandidateId,
+            );
+            const remote = stats.get(
+              (r as unknown as { remoteCandidateId: string }).remoteCandidateId,
+            );
+            relayed =
+              (local as unknown as { candidateType?: string })
+                ?.candidateType === 'relay' ||
+              (remote as unknown as { candidateType?: string })
+                ?.candidateType === 'relay';
+          }
+          if (r.type === 'remote-inbound-rtp') {
+            const rr = r as unknown as {
+              packetsLost?: number;
+              fractionLost?: number;
+            };
+            if (typeof rr.fractionLost === 'number') {
+              lossPct = rr.fractionLost * 100;
+            }
+          }
+        });
+        const link: LinkKind = relayed ? 'relayed' : 'direct';
+        const quality: LinkQuality =
+          rttMs < 0
+            ? 'unknown'
+            : rttMs < 150 && (lossPct < 0 || lossPct < 2)
+              ? 'good'
+              : rttMs < 300 && (lossPct < 0 || lossPct < 5)
+                ? 'fair'
+                : 'poor';
+        const prev = peerLinks.get(p.peerId);
+        if (prev?.link !== link || prev?.quality !== quality) {
+          peerLinks.set(p.peerId, { link, quality });
+          this.notify();
+        }
+      } catch {
+        /* pc closed mid-poll */
+      }
+    }
   }
 
   async acquireWakeLock(): Promise<void> {
@@ -198,6 +316,9 @@ export class PeerManager {
   }
 
   dispose(): void {
+    if (this.statsTimer) clearInterval(this.statsTimer);
+    this.statsTimer = null;
+    activeSpeaker.dispose();
     if (this.visHandler) {
       document.removeEventListener('visibilitychange', this.visHandler);
       this.visHandler = null;
