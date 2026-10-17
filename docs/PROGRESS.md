@@ -12,6 +12,13 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-18: T1.11 first production deploy
+
+- Deployed: `npm run deploy` uploaded 32 files (3.4 MB) to `meshly.softautonomi.com` in 32 s, manifest written.
+- Smoke checks (doc 08 s.5): `/` 200 with HSTS + full doc-07 CSP + X-Frame-Options + Referrer-Policy + Permissions-Policy; `sw.js` `cache-control: no-cache`; `manifest.webmanifest` `application/manifest+json`; SPA fallback serves index.html at `/r/abc`; `turn.php` 503 (TURN not configured yet, by design); `meshly-config.php` returns the SPA fallback 200 since the file does not exist (the deny rule applies only when the real file is present).
+- Remaining acceptance item: two-device call over the internet with free STUN (needs a real browser; headless e2e cannot reach public relays from here).
+- Commit: pending
+
 ## 2026-10-18: T1.11 deploy script (first deploy pending gate)
 
 - Changed: `app/scripts/deploy.mjs` implements doc 08 s.4: refuses stale builds (web older than app/src), builds a local manifest (size + SHA-256), fetches the remote `.deploy-manifest.json`, uploads in order (assets/fonts/icons/sounds, then misc, then index.html + manifest.webmanifest, sw.js last), skips unchanged files, keeps the last two releases of hashed assets, prints a summary, and supports `--dry-run`, `--config-only` (meshly-config.php to homeDir, chmod 600) and `--verbose`. FTPS handled via basic-ftp with the shared-hosting cert validated against the pinned `servername` in `.secrets/sftp.json` (`secureOptions.host` pinned, because basic-ftp would otherwise validate against the connect host).

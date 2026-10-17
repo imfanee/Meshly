@@ -24,7 +24,7 @@ Estimated effort for one agent with reviews: Phase 0 to 1 about 3 to 4 weeks of 
 - [x] **T1.8 Chat and reactions.** `ctl` data channel protocol, chat panel, unread badge, reactions, raise hand. *Accept:* e2e chat dedupe test passes.
 - [x] **T1.9 Staged ICE.** STUN-only start, escalation timer and triggers, TURN credential fetch with cache and backoff (`referrerPolicy: "same-origin"`), ICE restart, disconnected handling, relay-only mode, connection badge and debug panel. *Accept:* unit tests for the state machine pass; with TURN endpoint returning 503 the app shows the right tile message and keeps retrying.
 - [x] **T1.10 Content pages.** About (architecture explainer with credit), Privacy and Terms from doc 07 drafts. *Accept:* Faisal reviews copy (gate).
-- [ ] **T1.11 Deploy script and first deploy.** `app/scripts/deploy.mjs` per doc 08; smoke tests. *Accept:* Faisal approves; live site passes smoke tests; two-device call works over the internet with free STUN.
+- [x] **T1.11 Deploy script and first deploy.** `app/scripts/deploy.mjs` per doc 08; smoke tests. *Accept:* Faisal approves; live site passes smoke tests; two-device call works over the internet with free STUN.
 
 ## Phase 2: complete meeting experience
 
