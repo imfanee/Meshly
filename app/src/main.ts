@@ -21,4 +21,12 @@ ui.applyUpdate = registerSW({
   },
 });
 
+// E2E harness: expose core modules when ?e2e=1 is present. The dynamic import
+// keeps this code-split out of the production entry path.
+if (new URLSearchParams(location.search).has('e2e')) {
+  void import('./lib/core/signalling/e2e').then((m) => {
+    (window as unknown as { __meshlyTest: unknown }).__meshlyTest = m;
+  });
+}
+
 export default mount(App, { target });

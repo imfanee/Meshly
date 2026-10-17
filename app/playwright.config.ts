@@ -17,12 +17,20 @@ export default defineConfig({
     baseURL: 'http://localhost:4173',
     trace: 'retain-on-failure',
   },
-  webServer: {
-    command: 'npm run build && npm run preview -- --port 4173 --strictPort',
-    url: 'http://localhost:4173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-  },
+  webServer: [
+    {
+      command: 'npm run build && npm run preview -- --port 4173 --strictPort',
+      url: 'http://localhost:4173',
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+    },
+    {
+      command: 'node tools/dev-relay.mjs',
+      port: 8787,
+      reuseExistingServer: !process.env.CI,
+      timeout: 15_000,
+    },
+  ],
   projects: [
     {
       name: 'chromium',

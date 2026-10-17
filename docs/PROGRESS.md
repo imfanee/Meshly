@@ -12,6 +12,13 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-17: T1.4 Signalling hub
+
+- Changed: `core/signalling/` per doc 03 s.3 and 7: `transport.ts` contract; `nostr.ts` (kind-25050, `t` tag, throwaway Nostr key, paced sends at ~9/s); `mqtt.ts` (WSS, QoS 0, `meshly/v1/` prefix, paced sends, multi-broker fan-out); `devRelay.ts` (WS to `tools/dev-relay.mjs`); `envelope.ts` (`signEnvelope`, `encode`, `ReceivePipeline` with all drop reasons from doc 10); `hub.ts` (publish to every transport, inbound dedupe by ciphertext hash). `tools/dev-relay.mjs` 40-line WS rebroadcaster; `scripts/dev.mjs` runs Vite + relay together; `?e2e=1` harness exposes core modules via a dynamic (code-split) import for tests only.
+- Verified: 26 unit tests pass incl. every doc-10 pipeline drop reason (oversize, bad decrypt, bad json/shape, wrong-to, self, stale ts, replayed id, bad pk, bad sig, wrong signer for host-only) and hub fan-out/dedupe. e2e 8/8, including two browser tabs exchanging a signed, AES-GCM-encrypted `hello` over the dev relay. `npm run check` clean; build 42.8 KB gzipped main bundle.
+- Open: transport selection and call-site wiring land in T1.5 (session store); public Nostr/MQTT transports verified only via the T0.3/T0.4 spike scripts so far, not yet exercised through the hub.
+- Commit: pending
+
 ## 2026-10-17: T1.3 Crypto and room model
 
 - Changed: `core/crypto/` modules per doc 03: `encoding.ts` (base64url, base58, hex, canonical JSON), `hkdf.ts` (WebCrypto HKDF-SHA256, `deriveRoomKeys` topic + AES-256-GCM key), `aead.ts` (seal/open with topic-bound AAD), `sign.ts` (ECDSA P-256 identity, peerId/thumbprints, canonical-JSON sign/verify), `ticket.ts` (issue/verify admission tickets with verdicts). `core/room/room.ts` (createRoom with real ECDSA host identity, joinRoomKeys) and `hostKeyStore.ts` (IndexedDB persistence, 24 h TTL). Home and PostCall now create real host keys and store them.
