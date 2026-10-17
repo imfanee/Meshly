@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Meshly">
+  <rect width="512" height="512" rx="112" fill="#0B1117"/>
+  <g stroke="#2DD4BF" stroke-width="14" fill="none">
+    <path d="M136 136 L376 136 L376 376 L136 376 Z"/>
+    <path d="M136 136 L376 376"/>
+    <path d="M376 136 L136 376"/>
+  </g>
+  <g fill="#2DD4BF">
+    <circle cx="136" cy="136" r="30"/>
+    <circle cx="376" cy="136" r="30"/>
+    <circle cx="136" cy="376" r="30"/>
+    <circle cx="376" cy="376" r="30"/>
+  </g>
+</svg>

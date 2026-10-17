@@ -12,6 +12,14 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-17: T0.2 Scaffold app
+
+- Changed: created `app/` with Vite 8 + Svelte 5.57 + TypeScript 6 strict; `build.outDir: '../web'`, `emptyOutDir: true`; Tailwind v4 via `@tailwindcss/vite` with doc-05 design tokens bound through `@theme inline`; ESLint 10 flat config (tseslint + eslint-plugin-svelte + prettier), Prettier + svelte-check; Vitest 5 (own `vitest.config.ts`, node env); Playwright 1.64 (Chromium with fake-media flags, builds then previews); `vite-plugin-pwa` 2 (`registerType: 'prompt'`, manifest per doc 05 section 6); `scripts/copy-infra.mjs` prebuild copying `infra/cpanel/.htaccess`, `assets.htaccess`, `api/turn.php` and the Inter woff2 from `@fontsource-variable/inter` into `public/`; `src/config.ts` reading all `VITE_*` env with fallbacks; `app/.env` (dev, git-ignored) and `app/.env.production` (tracked, public values only); npm scripts `dev`, `build`, `preview`, `check`, `test`, `test:e2e`, `deploy`, `deploy:dry`; mesh-mark `logo.svg`; minimal `App.svelte` placeholder pending T1.1.
+- Verified: `npm run check` clean (svelte-check, tsc, eslint, prettier); `npm run test` 2/2; `npm run build` produces `web/index.html`, `web/.htaccess`, `web/assets/.htaccess`, `web/api/turn.php`, `web/fonts/InterVariable.woff2`, manifest and sw.js; `npm run test:e2e` 1/1 (Chromium + OS deps installed via playwright install-deps); initial JS 12.7 KB gzipped.
+- Decisions: used `@lucide/svelte` (the `lucide-svelte` package is deprecated upstream and redirects there); `deploy.mjs` is a safe stub until T1.11; `web/` and generated `public/` copies are git-ignored so `infra/` stays the source of truth.
+- Open: real PWA icons, og.png and sounds arrive in T1.2 (manifest already references them); open questions 1 to 7.
+- Commit: pending
+
 ## 2026-10-17: T0.1 Environment check
 
 - Changed: installed Node.js v24.22.0 (active LTS "Krypton", satisfies "LTS 22+") to /usr/local from the official tarball with SHA-256 verification; npm 11.19.1 included. Confirmed `agent/commands/*.md` already mirrored into `.claude/commands/` (identical), so `/next-task`, `/status`, `/deploy-web`, `/setup-turn` are available.
