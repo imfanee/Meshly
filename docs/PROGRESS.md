@@ -16,8 +16,8 @@ Format:
 
 - Deployed: `npm run deploy` uploaded 32 files (3.4 MB) to `meshly.softautonomi.com` in 32 s, manifest written.
 - Smoke checks (doc 08 s.5): `/` 200 with HSTS + full doc-07 CSP + X-Frame-Options + Referrer-Policy + Permissions-Policy; `sw.js` `cache-control: no-cache`; `manifest.webmanifest` `application/manifest+json`; SPA fallback serves index.html at `/r/abc`; `turn.php` 503 (TURN not configured yet, by design); `meshly-config.php` returns the SPA fallback 200 since the file does not exist (the deny rule applies only when the real file is present).
-- Remaining acceptance item: two-device call over the internet with free STUN (needs a real browser; headless e2e cannot reach public relays from here).
-- Commit: pending
+- Verified live 2026-10-18: Faisal confirmed Start Meeting and joining work on meshly.softautonomi.com over the real Nostr/MQTT transports (after the dev-relay leak fix, `f127982`).
+- Commit: c5fc9ee + f127982 (dev-relay fix)
 
 ## 2026-10-18: T1.11 deploy script (first deploy pending gate)
 
