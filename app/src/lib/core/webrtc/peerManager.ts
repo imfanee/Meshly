@@ -9,6 +9,7 @@ import type { SignallingHub } from '../signalling/hub';
 import type { Envelope } from '../signalling/envelope';
 import type { LocalMedia } from '../media/localMedia';
 import { activeSpeaker } from '../media/activeSpeaker';
+import { turnCredentials } from './turn';
 import type { RosterEntry } from '../room/state';
 import { config } from '../../../config';
 
@@ -28,6 +29,14 @@ export interface PeerInfo {
   hand: boolean;
   link: LinkKind;
   quality: LinkQuality;
+  /** Round-trip time in ms, -1 unknown. */
+  rttMs: number;
+  /** Remote-reported fractionLost as percent, -1 unknown. */
+  lossPct: number;
+  restarts: number;
+  escalations: number;
+  /** True while a needed TURN escalation could not fetch credentials. */
+  turnDown: boolean;
 }
 
 /** What a peer last told us about its mic/camera via the ctl channel. */
@@ -35,7 +44,10 @@ const peerMedia = new Map<
   string,
   { micOn: boolean; camOn: boolean; hand: boolean }
 >();
-const peerLinks = new Map<string, { link: LinkKind; quality: LinkQuality }>();
+const peerLinks = new Map<
+  string,
+  { link: LinkKind; quality: LinkQuality; rttMs: number; lossPct: number }
+>();
 
 export interface PeerManagerEvents {
   onPeersChanged(peers: PeerInfo[]): void;
@@ -91,6 +103,11 @@ export class PeerManager {
       hand: peerMedia.get(p.peerId)?.hand ?? false,
       link: peerLinks.get(p.peerId)?.link ?? 'unknown',
       quality: peerLinks.get(p.peerId)?.quality ?? 'unknown',
+      rttMs: peerLinks.get(p.peerId)?.rttMs ?? -1,
+      lossPct: peerLinks.get(p.peerId)?.lossPct ?? -1,
+      restarts: p.restarts,
+      escalations: p.escalations,
+      turnDown: p.turnUnavailable,
     }));
   }
 
@@ -116,6 +133,7 @@ export class PeerManager {
         p?.ctl?.send(JSON.stringify(this.mediaMsg()));
       },
       onCtlMessage: (peerId, data) => this.onCtl(peerId, data),
+      onDiagnostics: () => this.notify(),
     };
   }
 
@@ -179,6 +197,15 @@ export class PeerManager {
   }
 
   /** Existing member side: create PC after verified hello; answerer waits. */
+  /** Relay-only mode: peers start at Stage 2 with these TURN servers. */
+  relayOnly = false;
+  private relayServers: RTCIceServer[] = [];
+
+  enableRelayOnly(servers: RTCIceServer[]): void {
+    this.relayOnly = true;
+    this.relayServers = servers;
+  }
+
   async ensurePeer(peerId: string): Promise<Peer> {
     let p = this.peers.get(peerId);
     if (p) return p;
@@ -188,6 +215,8 @@ export class PeerManager {
       this.peerEvents(),
       this.iceServers(),
       false,
+      turnCredentials,
+      this.relayOnly,
     );
     this.peers.set(peerId, p);
     this.notify();
@@ -206,6 +235,8 @@ export class PeerManager {
           this.peerEvents(),
           this.iceServers(),
           true,
+          turnCredentials,
+          this.relayOnly,
         );
         this.peers.set(r.peerId, p);
       }
@@ -218,7 +249,8 @@ export class PeerManager {
   private iceServers(): RTCIceServer[] {
     const urls = [...config.stunUrls];
     if (config.ownStunUrl) urls.push(config.ownStunUrl);
-    return urls.length ? [{ urls }] : [];
+    const stun = urls.length ? [{ urls }] : [];
+    return [...stun, ...this.relayServers];
   }
 
   async applyLocalTracks(): Promise<void> {
@@ -330,8 +362,14 @@ export class PeerManager {
                 ? 'fair'
                 : 'poor';
         const prev = peerLinks.get(p.peerId);
-        if (prev?.link !== link || prev?.quality !== quality) {
-          peerLinks.set(p.peerId, { link, quality });
+        const snap = { link, quality, rttMs, lossPct };
+        if (
+          prev?.link !== link ||
+          prev?.quality !== quality ||
+          Math.abs((prev?.rttMs ?? -1) - rttMs) > 5 ||
+          Math.abs((prev?.lossPct ?? -1) - lossPct) > 0.5
+        ) {
+          peerLinks.set(p.peerId, snap);
           this.notify();
         }
       } catch {

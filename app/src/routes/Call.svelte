@@ -226,6 +226,7 @@
             camOn={large.camOn && large.hasVideo}
             micOn={large.micOn}
             hand={large.hand}
+            turnDown={large.turnDown}
             link={large.link}
             quality={large.quality}
             large
@@ -254,6 +255,7 @@
                 camOn={p.camOn && p.hasVideo}
                 micOn={p.micOn}
                 hand={p.hand}
+                turnDown={p.turnDown}
                 link={p.link}
                 quality={p.quality}
                 canModerate={isHost}
@@ -286,6 +288,7 @@
             camOn={p.camOn && p.hasVideo}
             micOn={p.micOn}
             hand={p.hand}
+            turnDown={p.turnDown}
             link={p.link}
             quality={p.quality}
             canModerate={isHost}
@@ -702,6 +705,38 @@
       <Link2 size={20} />
       {t.call.copyLink}
     </button>
+    <button
+      class="flex items-center gap-3 rounded-lg px-3 py-3 text-left
+        hover:bg-surface-2"
+      aria-pressed={settings.relayOnly}
+      onclick={() => (settings.relayOnly = !settings.relayOnly)}
+    >
+      <Lock size={20} />
+      Hide my IP address
+      {#if settings.relayOnly}
+        <span class="ml-auto text-xs text-brand">on</span>
+      {/if}
+    </button>
+    {#if session.peers.length > 0}
+      <div
+        class="mt-2 rounded-lg border border-border p-3 text-xs
+          text-text-muted"
+        aria-label="Connection details"
+      >
+        <p class="mb-2 font-semibold text-text">Connection details</p>
+        {#each session.peers as p (p.peerId)}
+          <div class="mb-1">
+            <span class="text-text">{p.name}</span>: {p.state},
+            {p.link}
+            {#if p.rttMs >= 0}, {Math.round(p.rttMs)} ms{/if}
+            {#if p.lossPct >= 0}, {p.lossPct.toFixed(1)}% loss{/if}
+            {#if p.restarts > 0}, {p.restarts} restarts{/if}
+            {#if p.escalations > 0}, {p.escalations} escalations{/if}
+            {#if p.turnDown}, relay unavailable{/if}
+          </div>
+        {/each}
+      </div>
+    {/if}
     {#if isHost}
       <button
         class="flex items-center gap-3 rounded-lg px-3 py-3 text-left

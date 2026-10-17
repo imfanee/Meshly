@@ -12,6 +12,13 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-18: T1.9 Staged ICE
+
+- Changed: `core/webrtc/turn.ts` (TurnCredentials: validates the turn.php shape, caches until 5 min before expiry, 60 s backoff on 4xx/5xx/network errors); `peer.ts` escalation state machine per doc 04 s.4 (Stage 1 STUN-only, escalate on `iceConnectionState === 'failed'`, on descriptions set + 8 s not connected (`VITE_ICE_ESCALATE_MS`), or on a remote `ice` batch with `relay: true` and a newer restart generation; Stage 2 fetches creds, `setConfiguration` adds TURN, `restartIce()`; disconnected for 4 s restarts, still unconnected 8 s later escalates; 10 s after a failed local escalation we send `ice {relay: true}` so the remote escalates too; while TURN is down the peer warns via `turnUnavailable` and retries every 30 s); `PeerManager` polls `getStats` into rtt/loss/quality/link per peer and exposes restarts/escalations/turnDown on PeerInfo; relay-only mode (`settings.relayOnly`) makes `initPeerManager` fetch TURN creds first and refuse the join when the endpoint is down rather than leaking the IP; tiles show an amber "Relay unavailable, retrying" alert while a needed escalation cannot get credentials; the mobile More sheet gained "Hide my IP address" plus a "Connection details" readout (state, link, RTT, loss, restarts, escalations).
+- Verified: `npm run check` clean; 38 unit tests (6 new: shape validation, caching, 503 backoff, network-error backoff, near-expiry refetch); e2e media + chat specs still green (3-way call, device switch, dedupe).
+- Open: the 503 tile message is covered by unit tests (backoff + turnUnavailable flag), a real relayed call cannot be tested until coturn is live (Phase 5); relay-only needs the turn.php endpoint deployed before the toggle works.
+- Commit: pending
+
 ## 2026-10-18: T1.8 Chat and reactions
 
 - Changed: `ctl` data-channel protocol per doc 03 s.8 (`{t, id, ts, b}` JSON): the T1.7 ad-hoc media message moved to `{t:'media', b:{audio, video, screen, hand}}`; `sendChat`, `sendReact` (fixed 8-emoji set), `setHand` in the session store; `PeerManager.sendCtlAll`/`handleCtl` (public for tests) route ctl traffic; session dedupes by message `id` (`seenCtl`, capped 2000); Call chat panel renders messages with sender names and timestamps plus an Enter-to-send composer; unread badge on the Chat button clears when the chat tab is open; reaction picker popover plus floating reaction list (4 s); raised hand propagates via the media message and shows a badge on tiles.

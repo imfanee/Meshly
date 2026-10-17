@@ -4,7 +4,7 @@
    * initials on a colour derived from peerId; name bottom-left; mic-off icon;
    * connection dot (green direct, amber relayed, red poor); speaking ring.
    */
-  import { MicOff, Pin, Hand } from '@lucide/svelte';
+  import { MicOff, Pin, Hand, TriangleAlert } from '@lucide/svelte';
   import { activeSpeaker } from '../core/media/activeSpeaker';
   import type { LinkKind, LinkQuality } from '../core/webrtc/peerManager';
 
@@ -15,6 +15,8 @@
     camOn: boolean;
     micOn: boolean;
     hand?: boolean;
+    /** TURN escalation needed but the credential endpoint is down. */
+    turnDown?: boolean;
     link?: LinkKind;
     quality?: LinkQuality;
     self?: boolean;
@@ -31,6 +33,7 @@
     camOn,
     micOn,
     hand = false,
+    turnDown = false,
     link = 'unknown',
     quality = 'unknown',
     self = false,
@@ -141,6 +144,16 @@
       aria-label="{name} has hand raised"
     >
       <Hand size={12} />
+    </span>
+  {/if}
+  {#if turnDown}
+    <span
+      class="absolute left-1/2 top-2 flex -translate-x-1/2 items-center gap-1
+        rounded-md bg-amber-600/90 px-2 py-1 text-xs text-white"
+      role="alert"
+    >
+      <TriangleAlert size={12} />
+      Relay unavailable, retrying
     </span>
   {/if}
 

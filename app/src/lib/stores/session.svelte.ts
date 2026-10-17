@@ -21,7 +21,9 @@ import {
   type CtlMessage,
 } from '../core/webrtc/peerManager';
 import { localMedia } from '../core/media/localMedia';
+import { turnCredentials } from '../core/webrtc/turn';
 import { settings } from './settings.svelte';
+import { toast } from './ui.svelte';
 import { config } from '../../config';
 
 export type Phase = 'home' | 'prejoin' | 'lobby' | 'call' | 'ended';
@@ -169,9 +171,21 @@ async function connectHub(keys: Awaited<ReturnType<typeof joinRoomKeys>>) {
   session.peerId = hub.peerId;
 }
 
-function initPeerManager(): PeerManager {
+async function initPeerManager(): Promise<PeerManager> {
   if (!hub || !session.peerId) throw new Error('session: hub not ready');
   peerManager?.dispose();
+  let relayServers: RTCIceServer[] = [];
+  if (settings.relayOnly) {
+    // Relay-only joins need TURN credentials up front; refuse otherwise
+    // rather than leaking the local IP (doc 04 s.4).
+    const creds = await turnCredentials.get();
+    if (!creds) {
+      throw new Error(
+        'Relay-only mode needs the TURN relay, which is unavailable right now.',
+      );
+    }
+    relayServers = creds.iceServers;
+  }
   const pm = new PeerManager(hub, session.peerId, localMedia, {
     onPeersChanged: (peers) => (session.peers = peers),
     onPeerJoined: (id) => {
@@ -186,6 +200,7 @@ function initPeerManager(): PeerManager {
     },
     onCtl: (peerId, msg) => handleCtl(peerId, msg),
   });
+  if (relayServers.length) pm.enableRelayOnly(relayServers);
   peerManager = pm;
   void pm.acquireWakeLock();
   pm.startStats();
@@ -303,7 +318,13 @@ export async function startHost(name: string): Promise<void> {
     eventsFor(),
   );
   await membership.startHost();
-  const pm = initPeerManager();
+  let pm: PeerManager;
+  try {
+    pm = await initPeerManager();
+  } catch (e) {
+    await leaveRoom('error');
+    throw e;
+  }
   session.phase = 'call';
   session.joinedAt = Date.now();
   await localMedia.acquire(settings.micOn, settings.camOn).catch(() => null);
@@ -316,14 +337,23 @@ function eventsFor() {
       session.lobbyState = v;
     },
     onAdmitted: () => {
-      session.phase = 'call';
-      session.joinedAt = Date.now();
-      const roster = membership?.roomState?.roster ?? [];
-      const pm = initPeerManager();
-      void localMedia
-        .acquire(settings.micOn, settings.camOn)
-        .catch(() => null)
-        .then(() => pm.offerToAll(roster));
+      void (async () => {
+        const roster = membership?.roomState?.roster ?? [];
+        let pm: PeerManager;
+        try {
+          pm = await initPeerManager();
+        } catch (e) {
+          toast(String(e instanceof Error ? e.message : e));
+          leaveRoom('error');
+          return;
+        }
+        session.phase = 'call';
+        session.joinedAt = Date.now();
+        void localMedia
+          .acquire(settings.micOn, settings.camOn)
+          .catch(() => null)
+          .then(() => pm.offerToAll(roster));
+      })();
     },
     onPeerVerified: (peerId: string) => {
       void peerManager
