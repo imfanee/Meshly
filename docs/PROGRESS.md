@@ -12,6 +12,14 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-17: T1.1 Design system and shell
+
+- Changed: full `en-GB` string table; `core/room/link.ts` (room link codec with strict regexes); history router (`lib/router.svelte.ts`); rune stores `session`, `ui`, `settings`; theme module (system/light/dark, `[data-theme]` on any element so the call view can pin dark); UI kit: Button, IconButton, Input, Dialog (native `<dialog>`), Sheet, Toaster, Tooltip, Tabs, Footer, MeshLogo; screens: Home (hero, start card, join link, features, how-it-works), Room container (unsupported/incomplete-link states), PreJoin, Lobby, Call chrome (auto-hiding top bar, stage, desktop and mobile control bar with More sheet, side panel), PostCall, About, Privacy and Terms (doc-07 drafts), NotFound; PWA update toast wired via `virtual:pwa-register`.
+- Verified: `npm run check` clean; unit tests 8/8 (link codec); e2e 6/6 (all routes, footer credit, mobile 360px pre-join, incomplete link, focus); build 39.6 KB gzipped; no em-dashes in `src/`.
+- Decisions: Lobby/Call/PostCall are phases inside the `/r/:roomId` route, matching the doc-02 module map; `@lucide/svelte` icons; `.svelte.ts` store files needed an explicit tseslint parser override (eslint-plugin-svelte claims that extension).
+- Open: host identity is still a placeholder random thumbprint until T1.3 wires real ECDSA keys; room state, real media and panels land in T1.5 to T1.8.
+- Commit: pending
+
 ## 2026-10-17: T0.5 Spike: AI model IDs and CORS
 
 - Changed: added `docs/spikes/ai-models.md` with verified default model IDs per provider and live CORS probe results.

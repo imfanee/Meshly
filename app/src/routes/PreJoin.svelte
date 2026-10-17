@@ -1,0 +1,152 @@
+<script lang="ts">
+  import { t } from '../lib/i18n/en-GB';
+  import Button from '../lib/ui/Button.svelte';
+  import IconButton from '../lib/ui/IconButton.svelte';
+  import Input from '../lib/ui/Input.svelte';
+  import Footer from '../lib/ui/Footer.svelte';
+  import MeshLogo from '../lib/ui/MeshLogo.svelte';
+  import Tooltip from '../lib/ui/Tooltip.svelte';
+  import { session } from '../lib/stores/session.svelte';
+  import { persistName, settings } from '../lib/stores/settings.svelte';
+  import { toast } from '../lib/stores/ui.svelte';
+  import { Mic, MicOff, Video, VideoOff, Copy, Share2 } from '@lucide/svelte';
+
+  let name = $state(settings.displayName);
+  let copied = $state(false);
+
+  const isHost = $derived(session.role === 'host');
+
+  function toggleMic() {
+    settings.micOn = !settings.micOn;
+  }
+  function toggleCam() {
+    settings.camOn = !settings.camOn;
+  }
+
+  async function copyLink() {
+    if (!session.link) return;
+    try {
+      await navigator.clipboard.writeText(session.link);
+      copied = true;
+      setTimeout(() => (copied = false), 2_000);
+    } catch {
+      toast(t.errors.retry);
+    }
+  }
+
+  async function shareLink() {
+    if (!session.link) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({ url: session.link, title: 'Meshly' });
+        return;
+      } catch {
+        /* user dismissed: fall through to copy */
+      }
+    }
+    copyLink();
+  }
+
+  function proceed() {
+    persistName(name);
+    // Admission flow lands in T1.5: the host goes straight in, guests knock.
+    session.phase = isHost ? 'call' : 'lobby';
+    session.joinedAt = Date.now();
+  }
+</script>
+
+<svelte:head>
+  <title>{t.appName} · {t.tagline}</title>
+</svelte:head>
+
+<div class="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-4">
+  <header class="flex items-center gap-3 py-5">
+    <MeshLogo size={32} />
+    <span class="text-lg font-semibold tracking-tight">{t.appName}</span>
+  </header>
+
+  <main class="flex flex-1 flex-col gap-4">
+    <div
+      class="relative aspect-video w-full overflow-hidden rounded-xl border
+        border-border bg-surface-2"
+      aria-label={t.prejoin.previewLabel}
+    >
+      {#if settings.camOn}
+        <div
+          class="flex h-full items-center justify-center text-sm text-text-muted"
+        >
+          {t.prejoin.permissionPrompt}
+        </div>
+      {:else}
+        <div
+          class="flex h-full items-center justify-center text-sm text-text-muted"
+        >
+          {t.prejoin.cameraOff}
+        </div>
+      {/if}
+      <span
+        class="absolute bottom-2 left-2 rounded-md bg-black/60 px-2 py-0.5
+          text-xs text-white">{name.trim() || t.call.you}</span
+      >
+    </div>
+
+    <div class="flex items-center justify-center gap-3">
+      <Tooltip text={settings.micOn ? t.prejoin.micOn : t.prejoin.micOff}>
+        <IconButton
+          label={settings.micOn ? t.prejoin.micOn : t.prejoin.micOff}
+          pressed={settings.micOn}
+          onclick={toggleMic}
+        >
+          {#if settings.micOn}<Mic size={22} />{:else}<MicOff size={22} />{/if}
+        </IconButton>
+      </Tooltip>
+      <Tooltip text={settings.camOn ? t.prejoin.cameraOn : t.prejoin.cameraOff}>
+        <IconButton
+          label={settings.camOn ? t.prejoin.cameraOn : t.prejoin.cameraOff}
+          pressed={settings.camOn}
+          onclick={toggleCam}
+        >
+          {#if settings.camOn}<Video size={22} />{:else}<VideoOff
+              size={22}
+            />{/if}
+        </IconButton>
+      </Tooltip>
+    </div>
+
+    <Input
+      label={t.prejoin.nameLabel}
+      placeholder={t.home.namePlaceholder}
+      bind:value={name}
+      maxlength={40}
+      autocomplete="name"
+    />
+
+    <Button
+      size="lg"
+      class="w-full"
+      disabled={name.trim().length === 0}
+      onclick={proceed}
+    >
+      {isHost ? t.prejoin.startMeeting : t.prejoin.askToJoin}
+    </Button>
+
+    {#if isHost && session.link}
+      <div class="mt-2 rounded-xl border border-border bg-surface p-4">
+        <h2 class="font-medium">{t.prejoin.linkCardTitle}</h2>
+        <p class="mt-1 text-sm text-text-muted">{t.prejoin.linkCardBody}</p>
+        <div class="mt-3 flex gap-2">
+          <Button variant="secondary" size="sm" onclick={copyLink}>
+            <Copy size={16} />
+            {copied ? t.prejoin.copied : t.prejoin.copyLink}
+          </Button>
+          <Button variant="secondary" size="sm" onclick={shareLink}>
+            <Share2 size={16} />
+            {t.prejoin.shareLink}
+          </Button>
+        </div>
+      </div>
+    {/if}
+  </main>
+
+  <Footer />
+</div>

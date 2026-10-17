@@ -33,6 +33,12 @@ export default tseslint.config(
     },
   },
   {
+    // Rune-bearing modules (foo.svelte.ts) are plain TS, not Svelte components;
+    // eslint-plugin-svelte would otherwise claim them for its own parser.
+    files: ['**/*.svelte.ts'],
+    languageOptions: { parser: tseslint.parser },
+  },
+  {
     files: ['**/*.ts'],
     rules: {
       // A stray `any` must be justified in a comment above it (AGENTS.md).

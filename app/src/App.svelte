@@ -1,40 +1,50 @@
 <script lang="ts">
+  import { router } from './lib/router.svelte';
+  import { initTheme, applyTheme } from './lib/platform/theme';
+  import { settings } from './lib/stores/settings.svelte';
+  import { ui } from './lib/stores/ui.svelte';
   import { t } from './lib/i18n/en-GB';
-  import { config } from './config';
+  import Toaster from './lib/ui/Toaster.svelte';
+  import Button from './lib/ui/Button.svelte';
+  import Home from './routes/Home.svelte';
+  import Room from './routes/Room.svelte';
+  import About from './routes/About.svelte';
+  import Privacy from './routes/Privacy.svelte';
+  import Terms from './routes/Terms.svelte';
+  import NotFound from './routes/NotFound.svelte';
+
+  initTheme();
+
+  $effect(() => {
+    applyTheme(settings.theme);
+  });
 </script>
 
-<svelte:head>
-  <title>{t.appName} · {t.tagline}</title>
-</svelte:head>
+{#if router.route.name === 'home'}
+  <Home />
+{:else if router.route.name === 'room'}
+  <Room roomId={router.route.roomId} />
+{:else if router.route.name === 'about'}
+  <About />
+{:else if router.route.name === 'privacy'}
+  <Privacy />
+{:else if router.route.name === 'terms'}
+  <Terms />
+{:else}
+  <NotFound />
+{/if}
 
-<main class="flex min-h-dvh flex-col items-center justify-center gap-6 p-6">
-  <img src="/icons/logo.svg" alt="" width="72" height="72" />
-  <div class="text-center">
-    <h1 class="text-3xl font-semibold tracking-tight">
-      {t.appName}
-    </h1>
-    <p class="mt-2 text-lg text-text-muted">{t.tagline} {t.heroSub}</p>
-    <p class="mt-4 text-sm text-text-muted">{t.scaffoldNotice}</p>
+<Toaster />
+
+{#if ui.updateReady}
+  <div
+    class="fixed bottom-4 left-4 z-[90] flex items-center gap-3 rounded-xl
+      border border-border bg-surface p-4 text-sm shadow-xl"
+    role="alert"
+  >
+    <span>{t.update.ready}</span>
+    <Button size="sm" onclick={() => ui.applyUpdate?.()}>
+      {t.update.action}
+    </Button>
   </div>
-</main>
-
-<footer
-  class="fixed inset-x-0 bottom-0 p-4 text-center text-xs text-text-muted"
->
-  Meshly · {t.footer.product} ·
-  {t.footer.credit} ·
-  <a
-    href="https://github.com/imfanee"
-    target="_blank"
-    rel="noopener noreferrer"
-    class="underline">GitHub</a
-  >
-  ·
-  <a
-    href="https://www.linkedin.com/in/faisal-hanif-ai-telecom/"
-    target="_blank"
-    rel="noopener noreferrer"
-    class="underline">LinkedIn</a
-  >
-  · v{config.version}
-</footer>
+{/if}

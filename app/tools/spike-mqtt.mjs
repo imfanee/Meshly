@@ -71,8 +71,8 @@ async function spikeBroker(url) {
   const topic = `meshly/v1/spike-${randomBytes(8).toString('hex')}`;
   const latencies = [];
   const seen = new Set();
-  let sub = null;
-  let pub = null;
+  let sub;
+  let pub;
   let pubError = null;
 
   try {
@@ -106,11 +106,9 @@ async function spikeBroker(url) {
     pub = await connect(url);
     for (let i = 0; i < MESSAGES; i += 1) {
       try {
-        await pub.publishAsync(
-          topic,
-          JSON.stringify({ i, t0: Date.now() }),
-          { qos: 0 },
-        );
+        await pub.publishAsync(topic, JSON.stringify({ i, t0: Date.now() }), {
+          qos: 0,
+        });
       } catch (e) {
         if (!pubError) pubError = e?.message ?? String(e);
       }

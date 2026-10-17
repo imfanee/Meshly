@@ -46,9 +46,12 @@ const relays = process.argv.slice(2).length
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sorted = (xs) => [...xs].sort((a, b) => a - b);
-const median = (xs) => (xs.length ? sorted(xs)[Math.floor(xs.length / 2)] : null);
+const median = (xs) =>
+  xs.length ? sorted(xs)[Math.floor(xs.length / 2)] : null;
 const p95 = (xs) =>
-  xs.length ? sorted(xs)[Math.min(xs.length - 1, Math.ceil(xs.length * 0.95) - 1)] : null;
+  xs.length
+    ? sorted(xs)[Math.min(xs.length - 1, Math.ceil(xs.length * 0.95) - 1)]
+    : null;
 
 async function spikeRelay(url) {
   const sk = generateSecretKey();
