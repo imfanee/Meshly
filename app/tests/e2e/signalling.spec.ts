@@ -19,6 +19,20 @@ interface MeshlyTest {
     hostThumb: string,
     events: { onMessage(e: unknown): void },
   ) => Hub;
+  session: {
+    chat: { id: string; text: string }[];
+    peers: { peerId: string }[];
+    knocks: { name: string }[];
+    drops: string[];
+    lobbyState: string;
+    roster: { name: string; peerId: string }[];
+  };
+  debugPeers(): unknown[];
+  debugInjectCtl(peerId: string, msg: unknown): void;
+  localMedia: {
+    listDevices(): Promise<MediaDeviceInfo[]>;
+    switchAudioDevice(id: string): Promise<void>;
+  };
 }
 
 interface Hub {

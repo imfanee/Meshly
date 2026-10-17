@@ -4,7 +4,7 @@
    * initials on a colour derived from peerId; name bottom-left; mic-off icon;
    * connection dot (green direct, amber relayed, red poor); speaking ring.
    */
-  import { MicOff, Pin } from '@lucide/svelte';
+  import { MicOff, Pin, Hand } from '@lucide/svelte';
   import { activeSpeaker } from '../core/media/activeSpeaker';
   import type { LinkKind, LinkQuality } from '../core/webrtc/peerManager';
 
@@ -14,6 +14,7 @@
     stream: MediaStream | null;
     camOn: boolean;
     micOn: boolean;
+    hand?: boolean;
     link?: LinkKind;
     quality?: LinkQuality;
     self?: boolean;
@@ -29,6 +30,7 @@
     stream,
     camOn,
     micOn,
+    hand = false,
     link = 'unknown',
     quality = 'unknown',
     self = false,
@@ -131,6 +133,16 @@
     {#if !micOn}<MicOff size={12} />{/if}
     {name}{self ? ' (you)' : ''}
   </span>
+  {#if hand}
+    <span
+      class="absolute bottom-2 right-2 flex items-center gap-1 rounded-md
+        bg-amber-500/80 px-1.5 py-1 text-white"
+      title="Hand raised"
+      aria-label="{name} has hand raised"
+    >
+      <Hand size={12} />
+    </span>
+  {/if}
 
   <span
     class="absolute right-2 top-2 flex items-center gap-1 rounded-md

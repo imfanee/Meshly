@@ -63,9 +63,9 @@ test('fourth joiner sees the room is full', async ({ browser }) => {
   await g3.getByRole('button', { name: 'Ask to join' }).click();
   try {
     await expect(g3.getByText('This meeting is full (3 people).')).toBeVisible({
-    // The host is busy negotiating WebRTC for A and B; deny can lag.
-    timeout: 30_000,
-  });
+      // The host is busy negotiating WebRTC for A and B; deny can lag.
+      timeout: 30_000,
+    });
   } finally {
     for (const [tag, p] of [
       ['HOST', host.page],
@@ -75,7 +75,11 @@ test('fourth joiner sees the room is full', async ({ browser }) => {
         const m = (
           window as unknown as {
             __meshlyTest: {
-              session: { lobbyState: string; drops: string[]; knocks: { name: string }[] };
+              session: {
+                lobbyState: string;
+                drops: string[];
+                knocks: { name: string }[];
+              };
             };
           }
         ).__meshlyTest;

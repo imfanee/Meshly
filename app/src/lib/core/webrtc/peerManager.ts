@@ -24,18 +24,33 @@ export interface PeerInfo {
   /** Remote-reported media state over the ctl channel. */
   micOn: boolean;
   camOn: boolean;
+  /** Raised hand, from the ctl media message. */
+  hand: boolean;
   link: LinkKind;
   quality: LinkQuality;
 }
 
 /** What a peer last told us about its mic/camera via the ctl channel. */
-const peerMedia = new Map<string, { micOn: boolean; camOn: boolean }>();
+const peerMedia = new Map<
+  string,
+  { micOn: boolean; camOn: boolean; hand: boolean }
+>();
 const peerLinks = new Map<string, { link: LinkKind; quality: LinkQuality }>();
 
 export interface PeerManagerEvents {
   onPeersChanged(peers: PeerInfo[]): void;
   onPeerJoined?(peerId: string): void;
   onPeerLeft?(peerId: string): void;
+  /** Non-media ctl traffic (chat, reactions, …) for the session to handle. */
+  onCtl?(peerId: string, msg: CtlMessage): void;
+}
+
+/** ctl channel message shape, doc 03 section 8: { t, id, ts, b }. */
+export interface CtlMessage {
+  t: string;
+  id: string;
+  ts: number;
+  b?: unknown;
 }
 
 export class PeerManager {
@@ -73,6 +88,7 @@ export class PeerManager {
       hasVideo: p.stream.getVideoTracks().length > 0,
       micOn: peerMedia.get(p.peerId)?.micOn ?? true,
       camOn: peerMedia.get(p.peerId)?.camOn ?? true,
+      hand: peerMedia.get(p.peerId)?.hand ?? false,
       link: peerLinks.get(p.peerId)?.link ?? 'unknown',
       quality: peerLinks.get(p.peerId)?.quality ?? 'unknown',
     }));
@@ -96,43 +112,69 @@ export class PeerManager {
       },
       onCtlOpen: (peerId) => {
         const p = this.peers.get(peerId);
-        const snap = this.media.snapshot();
-        // Tell the peer our mic/cam state so their tiles match reality.
-        p?.ctl?.send(
-          JSON.stringify({
-            k: 'media',
-            micOn: snap.audio?.enabled !== false && !!snap.audio,
-            camOn: !!snap.video,
-          }),
-        );
+        // Tell the peer our media state so their tiles match reality.
+        p?.ctl?.send(JSON.stringify(this.mediaMsg()));
       },
       onCtlMessage: (peerId, data) => this.onCtl(peerId, data),
     };
   }
 
-  private onCtl(peerId: string, data: unknown): void {
-    if (!data || typeof data !== 'object') return;
-    const m = data as { k?: string; micOn?: boolean; camOn?: boolean };
-    if (m.k === 'media') {
-      peerMedia.set(peerId, {
-        micOn: m.micOn !== false,
-        camOn: m.camOn === true,
-      });
-      this.notify();
-    }
-    // chat, reactions and hand messages arrive in T1.8
+  private hand = false;
+
+  private mediaMsg(): CtlMessage {
+    const snap = this.media.snapshot();
+    return {
+      t: 'media',
+      id: crypto.randomUUID(),
+      ts: Date.now(),
+      b: {
+        audio: snap.audio?.enabled !== false && !!snap.audio,
+        video: !!snap.video,
+        screen: false,
+        hand: this.hand,
+      },
+    };
   }
 
-  /** Push our mic/cam state to every open ctl channel (after toggles). */
+  /** Public so tests can inject ctl messages. */
+  handleCtl(peerId: string, data: unknown): void {
+    this.onCtl(peerId, data);
+  }
+
+  private onCtl(peerId: string, data: unknown): void {
+    if (!data || typeof data !== 'object') return;
+    const m = data as { t?: string; b?: Record<string, unknown> };
+    if (m.t === 'media' && m.b) {
+      peerMedia.set(peerId, {
+        micOn: m.b.audio !== false,
+        camOn: m.b.video === true,
+        hand: m.b.hand === true,
+      });
+      this.notify();
+      return;
+    }
+    this.events.onCtl?.(peerId, data as CtlMessage);
+  }
+
+  /** Push our mic/cam/hand state to every open ctl channel. */
   broadcastMediaState(): void {
-    const snap = this.media.snapshot();
-    const msg = JSON.stringify({
-      k: 'media',
-      micOn: snap.audio?.enabled !== false && !!snap.audio,
-      camOn: !!snap.video,
-    });
+    const msg = JSON.stringify(this.mediaMsg());
     for (const p of this.peers.values()) {
       if (p.ctl?.readyState === 'open') p.ctl.send(msg);
+    }
+  }
+
+  /** Raise or lower the local hand and tell everyone. */
+  setHand(up: boolean): void {
+    this.hand = up;
+    this.broadcastMediaState();
+  }
+
+  /** Broadcast a ctl message (chat, react, …) to every open channel. */
+  sendCtlAll(msg: CtlMessage): void {
+    const s = JSON.stringify(msg);
+    for (const p of this.peers.values()) {
+      if (p.ctl?.readyState === 'open') p.ctl.send(s);
     }
   }
 

@@ -15,7 +15,11 @@ import { joinRoomKeys } from '../core/room/room';
 import { loadHostKey } from '../core/room/hostKeyStore';
 import { generateIdentity, type IdentityKey } from '../core/crypto/sign';
 import { toBase64Url } from '../core/crypto/encoding';
-import { PeerManager, type PeerInfo } from '../core/webrtc/peerManager';
+import {
+  PeerManager,
+  type PeerInfo,
+  type CtlMessage,
+} from '../core/webrtc/peerManager';
 import { localMedia } from '../core/media/localMedia';
 import { settings } from './settings.svelte';
 import { config } from '../../config';
@@ -24,6 +28,29 @@ export type Phase = 'home' | 'prejoin' | 'lobby' | 'call' | 'ended';
 export type Role = 'host' | 'guest';
 export type EndReason = 'left' | 'ended' | 'removed' | 'error';
 export type LobbyState = 'waiting' | 'host-away' | 'denied' | 'full' | 'locked';
+
+export interface ChatMsg {
+  id: string;
+  from: string;
+  name: string;
+  text: string;
+  ts: number;
+  self: boolean;
+}
+
+export interface Reaction {
+  id: string;
+  name: string;
+  emoji: string;
+  ts: number;
+}
+
+const REACTIONS = ['👍', '❤️', '😂', '👏', '😮', '🎉', '🙏', '😢'] as const;
+export const REACTION_SET = [...REACTIONS];
+
+/** Deduped ctl message ids (chat, react, media). */
+// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive dedupe set
+const seenCtl = new Set<string>();
 
 export const session = $state({
   phase: 'prejoin' as Phase,
@@ -42,6 +69,9 @@ export const session = $state({
   peers: [] as PeerInfo[],
   announce: '',
   drops: [] as string[],
+  chat: [] as ChatMsg[],
+  reactions: [] as Reaction[],
+  handUp: false,
 });
 
 // Non-reactive internals (CryptoKeys must not be Svelte-proxied).
@@ -98,6 +128,11 @@ export function resetSession(): void {
   session.signalling = 'connecting';
   session.peers = [];
   session.announce = '';
+  session.chat = [];
+  session.reactions = [];
+  session.drops = [];
+  seenCtl.clear();
+  session.handUp = false;
 }
 
 async function connectHub(keys: Awaited<ReturnType<typeof joinRoomKeys>>) {
@@ -149,11 +184,44 @@ function initPeerManager(): PeerManager {
         session.roster.find((r) => r.peerId === id)?.name ?? 'Someone';
       session.announce = `${name} left`;
     },
+    onCtl: (peerId, msg) => handleCtl(peerId, msg),
   });
   peerManager = pm;
   void pm.acquireWakeLock();
   pm.startStats();
   return pm;
+}
+
+function nameOf(peerId: string): string {
+  return session.roster.find((r) => r.peerId === peerId)?.name ?? 'Someone';
+}
+
+function handleCtl(peerId: string, msg: CtlMessage): void {
+  if (typeof msg.id !== 'string' || typeof msg.t !== 'string') return;
+  if (seenCtl.has(msg.id)) return; // dedupe
+  if (seenCtl.size > 2000) seenCtl.clear();
+  seenCtl.add(msg.id);
+  const b = msg.b as Record<string, unknown> | undefined;
+  if (msg.t === 'chat' && typeof b?.text === 'string') {
+    session.chat.push({
+      id: msg.id,
+      from: peerId,
+      name: nameOf(peerId),
+      text: b.text.slice(0, 2000),
+      ts: typeof msg.ts === 'number' ? msg.ts : Date.now(),
+      self: false,
+    });
+    session.announce = `${nameOf(peerId)}: ${String(b.text).slice(0, 120)}`;
+  } else if (msg.t === 'react' && typeof b?.emoji === 'string') {
+    if (!(REACTION_SET as readonly string[]).includes(b.emoji)) return;
+    session.reactions.push({
+      id: msg.id,
+      name: nameOf(peerId),
+      emoji: b.emoji,
+      ts: Date.now(),
+    });
+    session.announce = `${nameOf(peerId)} reacted ${b.emoji}`;
+  }
 }
 
 /** Remote stream lookup for tiles (unproxied MediaStream). */
@@ -338,6 +406,49 @@ export async function endCall(): Promise<void> {
   localMedia.stopAll();
   await membership?.end();
   leaveRoom('ended');
+}
+
+/** Send a chat message to everyone over the ctl channels. */
+export function sendChat(text: string): void {
+  const clean = text.trim().slice(0, 2000);
+  if (!clean || !peerManager) return;
+  const id = crypto.randomUUID();
+  seenCtl.add(id);
+  session.chat.push({
+    id,
+    from: session.peerId ?? 'me',
+    name: settings.displayName || 'you',
+    text: clean,
+    ts: Date.now(),
+    self: true,
+  });
+  peerManager.sendCtlAll({ t: 'chat', id, ts: Date.now(), b: { text: clean } });
+}
+
+/** Send a reaction emoji to everyone. */
+export function sendReact(emoji: string): void {
+  if (!peerManager || !(REACTION_SET as readonly string[]).includes(emoji))
+    return;
+  const id = crypto.randomUUID();
+  seenCtl.add(id);
+  session.reactions.push({
+    id,
+    name: settings.displayName || 'you',
+    emoji,
+    ts: Date.now(),
+  });
+  peerManager.sendCtlAll({ t: 'react', id, ts: Date.now(), b: { emoji } });
+}
+
+/** Raise or lower the local hand; broadcast via media ctl message. */
+export function setHand(up: boolean): void {
+  session.handUp = up;
+  peerManager?.setHand(up);
+}
+
+/** Test hook: inject a ctl message as if it arrived from a peer. */
+export function debugInjectCtl(peerId: string, msg: CtlMessage): void {
+  peerManager?.handleCtl(peerId, msg);
 }
 
 /** Media toggles: settings store + LocalMedia, which replaceTracks all peers. */

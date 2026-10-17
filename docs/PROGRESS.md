@@ -12,13 +12,20 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-18: T1.8 Chat and reactions
+
+- Changed: `ctl` data-channel protocol per doc 03 s.8 (`{t, id, ts, b}` JSON): the T1.7 ad-hoc media message moved to `{t:'media', b:{audio, video, screen, hand}}`; `sendChat`, `sendReact` (fixed 8-emoji set), `setHand` in the session store; `PeerManager.sendCtlAll`/`handleCtl` (public for tests) route ctl traffic; session dedupes by message `id` (`seenCtl`, capped 2000); Call chat panel renders messages with sender names and timestamps plus an Enter-to-send composer; unread badge on the Chat button clears when the chat tab is open; reaction picker popover plus floating reaction list (4 s); raised hand propagates via the media message and shows a badge on tiles.
+- Verified: `npm run check` clean; 32 unit tests; e2e chat spec proves delivery plus dedupe (injecting the same id twice yields one message); admission/media/capacity suites unaffected.
+- Open: private chat (`to:`) and message persistence are not in v1; reactions are transient only.
+- Commit: pending
+
 ## 2026-10-17: T1.7 Call UI
 
 - Changed: `lib/ui/Tile.svelte` (video or avatar with initials on a peerId-derived colour, name label, mic-off icon, connection dot green/amber/red, speaking ring, host remove menu); `core/media/activeSpeaker.ts` (shared AudioContext, per-peer analyser, 100 ms RMS, 300 ms speak threshold, 1.5 s dwell; also feeds the PreJoin mic meter and the "You are muted" hint); `PeerManager` now polls `getStats` every 2 s for link kind (direct/relayed) and quality (doc 04 s.6 thresholds) and relays mic/cam state over the `ctl` channel (`k:'media'`); Call stage has grid (1/2/3-column rules) and speaker (large + filmstrip) layouts with a toggle in the desktop control bar and the mobile More sheet; People and Chat buttons carry badges; camera flip wired in More; "Tap to turn on sound" overlay appears when autoplay blocks a remote video.
 - Verified: `npm run check` clean; 32 unit tests; e2e 14/14 (3-way call, device switch, capacity, admission).
 - Debug notes: capacity test initially failed because a stale `web/` build (maxParticipants=12) was being served by a reused preview; the real signal was the host keeping Guest C in pending rather than denying. Fixed by rebuilding with the e2e env and disabling trace on the four-context capacity spec (trace zip corrupted under load).
 - Open: pin on tiles is placeholder-only; raised-hand badge awaits T1.8 ctl messages; screen layout auto-switches on share in T2.1.
-- Commit: pending
+- Commit: cca0dc0
 
 ## 2026-10-17: T1.6 Peer manager and media
 

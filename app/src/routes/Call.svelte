@@ -17,6 +17,10 @@
     hostActions,
     mediaActions,
     peerStreamOf,
+    sendChat,
+    sendReact,
+    setHand,
+    REACTION_SET,
   } from '../lib/stores/session.svelte';
   import { localMedia } from '../lib/core/media/localMedia';
   import { activeSpeaker } from '../lib/core/media/activeSpeaker';
@@ -47,7 +51,7 @@
   const isHost = $derived(session.role === 'host');
   let elapsed = $state(0);
   let topVisible = $state(true);
-  let handUp = $state(false);
+  let reactOpen = $state(false);
   let moreOpen = $state(false);
   let leaveMenu = $state(false);
   let copied = $state(false);
@@ -117,6 +121,35 @@
     localMedia.onChange(() => (localStream = localMedia.snapshot().stream)),
   );
   onMount(() => (localStream = localMedia.snapshot().stream));
+
+  // Chat unread badge: count messages while the panel is on another tab.
+  let seenChat = $state(0);
+  $effect(() => {
+    if (ui.panel === 'chat') {
+      ui.unreadChat = 0;
+      seenChat = session.chat.length;
+    } else if (session.chat.length > seenChat) {
+      ui.unreadChat += session.chat.length - seenChat;
+      seenChat = session.chat.length;
+    }
+  });
+
+  // Reactions float for a few seconds; a slow ticker prunes the view.
+  let now = $state(Date.now());
+  onMount(() => {
+    const id = setInterval(() => (now = Date.now()), 1_000);
+    return () => clearInterval(id);
+  });
+  const liveReactions = $derived(
+    session.reactions.filter((r) => now - r.ts < 4_000),
+  );
+
+  let draft = $state('');
+  function submitChat(e: Event) {
+    e.preventDefault();
+    sendChat(draft);
+    draft = '';
+  }
 
   // Unmuted remote videos can be paused by autoplay policy; offer a tap fix.
   $effect(() => {
@@ -192,6 +225,7 @@
             stream={peerStreamOf(large.peerId)}
             camOn={large.camOn && large.hasVideo}
             micOn={large.micOn}
+            hand={large.hand}
             link={large.link}
             quality={large.quality}
             large
@@ -207,6 +241,7 @@
               stream={localStream}
               camOn={settings.camOn && !!localStream?.getVideoTracks().length}
               micOn={settings.micOn}
+              hand={session.handUp}
               self
             />
           </div>
@@ -218,6 +253,7 @@
                 stream={peerStreamOf(p.peerId)}
                 camOn={p.camOn && p.hasVideo}
                 micOn={p.micOn}
+                hand={p.hand}
                 link={p.link}
                 quality={p.quality}
                 canModerate={isHost}
@@ -239,6 +275,7 @@
           stream={localStream}
           camOn={settings.camOn && !!localStream?.getVideoTracks().length}
           micOn={settings.micOn}
+          hand={session.handUp}
           self
         />
         {#each session.peers as p (p.peerId)}
@@ -248,6 +285,7 @@
             stream={peerStreamOf(p.peerId)}
             camOn={p.camOn && p.hasVideo}
             micOn={p.micOn}
+            hand={p.hand}
             link={p.link}
             quality={p.quality}
             canModerate={isHost}
@@ -267,6 +305,20 @@
           soundBlocked = false;
         }}>{t.call.sound}</button
       >
+    {/if}
+    {#if liveReactions.length > 0}
+      <div
+        class="pointer-events-none absolute bottom-4 left-4 z-30 flex
+          flex-col gap-1"
+      >
+        {#each liveReactions as r (r.id)}
+          <span
+            class="flex items-center gap-2 rounded-full bg-black/60 px-3 py-1
+              text-sm text-white"
+            ><span class="text-lg">{r.emoji}</span>{r.name}</span
+          >
+        {/each}
+      </div>
     {/if}
   </main>
 
@@ -298,7 +350,51 @@
       </div>
       <div class="flex-1 overflow-y-auto text-sm">
         {#if ui.panel === 'chat'}
-          <p class="text-text-muted">Chat arrives in T1.8.</p>
+          <div class="flex h-full min-h-0 flex-col">
+            <ul
+              class="flex-1 space-y-3 overflow-y-auto pr-1"
+              aria-label="Chat messages"
+            >
+              {#each session.chat as m (m.id)}
+                <li>
+                  <div class="flex items-baseline gap-2">
+                    <span class="text-xs font-semibold">{m.name}</span>
+                    <span class="text-[10px] text-text-muted">
+                      {new Date(m.ts).toLocaleTimeString([], {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                  <p
+                    class="mt-0.5 whitespace-pre-wrap break-words rounded-lg
+                      {m.self ? 'bg-brand/15' : 'bg-surface-2'} px-2.5 py-1.5"
+                  >
+                    {m.text}
+                  </p>
+                </li>
+              {:else}
+                <p class="text-sm text-text-muted">No messages yet.</p>
+              {/each}
+            </ul>
+            <form class="mt-3 flex gap-2" onsubmit={submitChat}>
+              <input
+                class="min-w-0 flex-1 rounded-lg border border-border
+                  bg-surface-2 px-3 py-2 text-sm
+                  focus-visible:outline-2 focus-visible:outline-brand"
+                placeholder={t.chat.placeholder}
+                bind:value={draft}
+                aria-label={t.chat.placeholder}
+              />
+              <button
+                type="submit"
+                class="rounded-lg bg-brand px-3 py-2 text-sm font-medium
+                  text-[#04211d] hover:opacity-90
+                  focus-visible:outline-2 focus-visible:outline-white"
+                disabled={!draft.trim()}>{t.chat.send}</button
+              >
+            </form>
+          </div>
         {/if}
         {#if ui.panel === 'people'}
           {#if isHost && session.knocks.length > 0}
@@ -419,18 +515,41 @@
         <MonitorUp size={22} />
       </IconButton>
       <IconButton
-        label={handUp ? t.call.lowerHand : t.call.raiseHand}
-        pressed={handUp}
-        onclick={() => (handUp = !handUp)}
+        label={session.handUp ? t.call.lowerHand : t.call.raiseHand}
+        pressed={session.handUp}
+        onclick={() => setHand(!session.handUp)}
       >
         <Hand size={22} />
       </IconButton>
-      <IconButton
-        label={t.call.reactions}
-        onclick={() => toast(t.call.reactions)}
-      >
-        <SmilePlus size={22} />
-      </IconButton>
+      <span class="relative">
+        <IconButton
+          label={t.call.reactions}
+          pressed={reactOpen}
+          onclick={() => (reactOpen = !reactOpen)}
+        >
+          <SmilePlus size={22} />
+        </IconButton>
+        {#if reactOpen}
+          <div
+            class="absolute bottom-full left-1/2 z-30 mb-2 flex -translate-x-1/2
+              gap-1 rounded-full border border-border bg-surface p-2 shadow-xl"
+            role="menu"
+          >
+            {#each REACTION_SET as emoji (emoji)}
+              <button
+                role="menuitem"
+                class="rounded-full p-1.5 text-xl hover:bg-surface-2
+                  focus-visible:outline-2 focus-visible:outline-brand"
+                aria-label="React {emoji}"
+                onclick={() => {
+                  sendReact(emoji);
+                  reactOpen = false;
+                }}>{emoji}</button
+              >
+            {/each}
+          </div>
+        {/if}
+      </span>
       <IconButton
         label={t.call.people}
         class="relative"
@@ -524,12 +643,12 @@
       class="flex items-center gap-3 rounded-lg px-3 py-3 text-left
         hover:bg-surface-2"
       onclick={() => {
-        handUp = !handUp;
+        setHand(!session.handUp);
         moreOpen = false;
       }}
     >
       <Hand size={20} />
-      {handUp ? t.call.lowerHand : t.call.raiseHand}
+      {session.handUp ? t.call.lowerHand : t.call.raiseHand}
     </button>
     <button
       class="flex items-center gap-3 rounded-lg px-3 py-3 text-left
