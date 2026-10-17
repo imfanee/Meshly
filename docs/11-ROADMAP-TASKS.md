@@ -71,7 +71,7 @@ Estimated effort for one agent with reviews: Phase 0 to 1 about 3 to 4 weeks of 
 Faisal answers these; the agent must not guess them.
 
 1. ~~**Domain:**~~ answered 2026-10-17: app at `meshly.softautonomi.com`, TURN at `turn.softautonomi.com` (`ACME_EMAIL` `imfanee@gmail.com`). `VITE_APP_URL` updated everywhere.
-2. **cPanel:** FTP account exists (user `devin`); still needed: FTP host/port and the subdomain's document root. Is SSH/SFTP also available?
+2. ~~**cPanel:**~~ answered 2026-10-17: FTPS on `ftp.softautonomi.com:21`, user `devin@meshly.softautonomi.com`, account root is already the docroot. Note: the TLS cert names the shared server (altar45.supremepanel45.com), so the deploy script must set `servername`/loose verify; and this account cannot reach the cPanel home dir, so `meshly-config.php` will be a manual upload (phase 5).
 3. **Licence:** MIT (maximum reuse) or AGPL-3.0 (forks of a hosted version must share source)? Or source-available without a licence?
 4. **Co-host / host transfer:** needed in v1, or later?
 5. **Recording by guests:** stays host-only (current spec)?
