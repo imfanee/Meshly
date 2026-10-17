@@ -9,11 +9,8 @@
     enterRoom,
   } from '../lib/stores/session.svelte';
   import { navigate } from '../lib/router.svelte';
-  import {
-    formatLink,
-    randomRoomId,
-    randomSecret,
-  } from '../lib/core/room/link';
+  import { createRoom } from '../lib/core/room/room';
+  import { saveHostKey } from '../lib/core/room/hostKeyStore';
   import { config } from '../config';
 
   const heading = $derived(
@@ -34,15 +31,13 @@
     session.phase = 'prejoin';
   }
 
-  function newMeeting() {
-    const room = {
-      roomId: randomRoomId(),
-      roomSecret: randomSecret(),
-      hostThumb: randomSecret(),
-    };
-    const link = formatLink(config.appUrl, room);
-    enterRoom(room, link, 'host');
-    navigate(`/r/${room.roomId}#${room.roomSecret}.${room.hostThumb}`);
+  async function newMeeting() {
+    const room = await createRoom(config.appUrl);
+    await saveHostKey(room.link.roomId, room.host);
+    enterRoom(room.link, room.url, 'host');
+    navigate(
+      `/r/${room.link.roomId}#${room.link.roomSecret}.${room.link.hostThumb}`,
+    );
   }
 
   function home() {

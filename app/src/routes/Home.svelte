@@ -6,12 +6,9 @@
   import Footer from '../lib/ui/Footer.svelte';
   import MeshLogo from '../lib/ui/MeshLogo.svelte';
   import { navigate } from '../lib/router.svelte';
-  import {
-    formatLink,
-    parseLink,
-    randomRoomId,
-    randomSecret,
-  } from '../lib/core/room/link';
+  import { formatLink, parseLink } from '../lib/core/room/link';
+  import { createRoom } from '../lib/core/room/room';
+  import { saveHostKey } from '../lib/core/room/hostKeyStore';
   import { persistName, settings } from '../lib/stores/settings.svelte';
   import { enterRoom } from '../lib/stores/session.svelte';
   import { toast } from '../lib/stores/ui.svelte';
@@ -27,18 +24,14 @@
   let joinLink = $state('');
   let name = $state(settings.displayName);
 
-  function startMeeting() {
+  async function startMeeting() {
     persistName(name);
-    // Full host identity (ECDSA key and thumbprint) is created in T1.3; the
-    // shell generates a well-formed link so navigation and Copy work now.
-    const room = {
-      roomId: randomRoomId(),
-      roomSecret: randomSecret(),
-      hostThumb: randomSecret(),
-    };
-    const link = formatLink(config.appUrl, room);
-    enterRoom(room, link, 'host');
-    navigate(`/r/${room.roomId}#${room.roomSecret}.${room.hostThumb}`);
+    const room = await createRoom(config.appUrl);
+    await saveHostKey(room.link.roomId, room.host);
+    enterRoom(room.link, room.url, 'host');
+    navigate(
+      `/r/${room.link.roomId}#${room.link.roomSecret}.${room.link.hostThumb}`,
+    );
   }
 
   function join() {

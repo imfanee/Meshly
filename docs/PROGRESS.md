@@ -12,6 +12,13 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-17: T1.3 Crypto and room model
+
+- Changed: `core/crypto/` modules per doc 03: `encoding.ts` (base64url, base58, hex, canonical JSON), `hkdf.ts` (WebCrypto HKDF-SHA256, `deriveRoomKeys` topic + AES-256-GCM key), `aead.ts` (seal/open with topic-bound AAD), `sign.ts` (ECDSA P-256 identity, peerId/thumbprints, canonical-JSON sign/verify), `ticket.ts` (issue/verify admission tickets with verdicts). `core/room/room.ts` (createRoom with real ECDSA host identity, joinRoomKeys) and `hostKeyStore.ts` (IndexedDB persistence, 24 h TTL). Home and PostCall now create real host keys and store them.
+- Verified: 21 unit tests pass covering doc 10 items: base64url round trip, RFC 5869 HKDF test case 1, AES-GCM round trip plus tamper and wrong-AAD rejection, ECDSA sign/verify and wrong-key rejection, thumbprint stability, canonical JSON ordering/nesting/unicode, ticket verdicts (valid, expired, wrong room, wrong peer, kicked, bad sig, malformed). `npm run check` clean; build OK.
+- Open: host-key reload path is stored but not yet used on refresh; lands with admission in T1.5.
+- Commit: pending
+
 ## 2026-10-17: T1.2 PWA
 
 - Changed: generated the full icon set with `@vite-pwa/assets-generator` (pwa-64/192/512, maskable-512, apple-touch-180, favicon.ico) from `logo.svg`; `scripts/make-og.mjs` draws `og.png` (1200x630) and both manifest screenshots via sharp-composed SVG; manifest completed per doc 05 s.6 (id, start_url, display_override window-controls-overlay, shortcuts, categories, screenshots); `platform/install.svelte.ts` implements the full install decision tree (standalone / beforeinstallprompt / iOS Safari / iOS other / macOS Safari / hidden); `InstallSheet` guide UI; install button in the Home top bar; window-controls-overlay 32px drag title bar in `App.svelte`; SW update checks on launch plus every 60 minutes.
