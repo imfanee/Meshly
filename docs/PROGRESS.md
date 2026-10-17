@@ -12,6 +12,13 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-18: T1.11 deploy script (first deploy pending gate)
+
+- Changed: `app/scripts/deploy.mjs` implements doc 08 s.4: refuses stale builds (web older than app/src), builds a local manifest (size + SHA-256), fetches the remote `.deploy-manifest.json`, uploads in order (assets/fonts/icons/sounds, then misc, then index.html + manifest.webmanifest, sw.js last), skips unchanged files, keeps the last two releases of hashed assets, prints a summary, and supports `--dry-run`, `--config-only` (meshly-config.php to homeDir, chmod 600) and `--verbose`. FTPS handled via basic-ftp with the shared-hosting cert validated against the pinned `servername` in `.secrets/sftp.json` (`secureOptions.host` pinned, because basic-ftp would otherwise validate against the connect host).
+- Verified: `npm run deploy:dry` connects to `ftp.softautonomi.com` and prints the plan (~30 files, ~2.5 MB, correct order, no deletions).
+- Open: first production deploy awaits Faisal's approval (user gate); `.deploy-manifest.json` is hidden by `.htaccess` FilesMatch (FTP-only, by design); `meshly-config.php` remains a manual upload (FTP account jailed to docroot).
+- Commit: pending
+
 ## 2026-10-18: T1.10 Content pages
 
 - Changed: About gained the architecture explainer (link-secret crypto, encrypted signalling over Nostr/MQTT, STUN-first with own TURN on demand, full mesh, one tiny server script) plus "What we do not have"; Privacy kept the doc-07 draft and gained the honest-limitations section (link holders can knock, relays see traffic exists) and an email contact; Terms gained the licence clause matching the new LICENCE file (free to use hosted, permission + intact footer for self-hosting, contact for modifications) plus email and phone contact.
