@@ -10,7 +10,12 @@
   import Sheet from '../lib/ui/Sheet.svelte';
   import Tabs from '../lib/ui/Tabs.svelte';
   import Tooltip from '../lib/ui/Tooltip.svelte';
-  import { session, leaveRoom } from '../lib/stores/session.svelte';
+  import {
+    session,
+    leaveCall,
+    endCall,
+    hostActions,
+  } from '../lib/stores/session.svelte';
   import { settings } from '../lib/stores/settings.svelte';
   import { ui, togglePanel, toast } from '../lib/stores/ui.svelte';
   import {
@@ -75,8 +80,20 @@
   }
 
   function leave(ended: boolean) {
-    leaveRoom(ended ? 'ended' : 'left');
+    leaveMenu = false;
+    if (ended) void endCall();
+    else void leaveCall();
   }
+
+  // Toast on new knocks so the host notices without the panel open.
+  let seenKnocks = $state(0);
+  $effect(() => {
+    if (session.knocks.length > seenKnocks) {
+      const newest = session.knocks[session.knocks.length - 1];
+      toast(t.people.knockToast(newest.name));
+    }
+    seenKnocks = session.knocks.length;
+  });
 </script>
 
 <svelte:head>
@@ -174,10 +191,91 @@
           onclick={() => (ui.panel = null)}>&times;</button
         >
       </div>
-      <div class="flex-1 text-sm text-text-muted">
-        {#if ui.panel === 'chat'}Chat arrives in T1.8.{/if}
-        {#if ui.panel === 'people'}{t.people.participants}{/if}
-        {#if ui.panel === 'notes'}{t.call.aiNotes}{/if}
+      <div class="flex-1 overflow-y-auto text-sm">
+        {#if ui.panel === 'chat'}
+          <p class="text-text-muted">Chat arrives in T1.8.</p>
+        {/if}
+        {#if ui.panel === 'people'}
+          {#if isHost && session.knocks.length > 0}
+            <h3
+              class="mb-1 text-xs font-semibold uppercase tracking-wide
+              text-text-muted"
+            >
+              {t.people.knocking}
+            </h3>
+            <ul class="mb-4 space-y-1" aria-label={t.people.knocking}>
+              {#each session.knocks as k (k.peerId)}
+                <li
+                  class="flex items-center gap-2 rounded-lg border
+                    border-border bg-surface-2 px-3 py-2"
+                >
+                  <span class="flex-1 truncate">{k.name}</span>
+                  <button
+                    class="rounded-md bg-brand px-2.5 py-1 text-xs font-medium
+                      text-[#04211d] hover:opacity-90
+                      focus-visible:outline-2 focus-visible:outline-white"
+                    onclick={() => hostActions.admit(k.peerId)}
+                    >{t.people.admit}</button
+                  >
+                  <button
+                    class="rounded-md bg-border px-2.5 py-1 text-xs font-medium
+                      hover:opacity-90 focus-visible:outline-2
+                      focus-visible:outline-white"
+                    onclick={() => hostActions.deny(k.peerId)}
+                    >{t.people.deny}</button
+                  >
+                </li>
+              {/each}
+            </ul>
+          {/if}
+          <h3
+            class="mb-1 text-xs font-semibold uppercase tracking-wide
+            text-text-muted"
+          >
+            {t.people.participants}
+          </h3>
+          <ul class="space-y-1" aria-label={t.people.participants}>
+            {#each session.roster as r (r.peerId)}
+              <li class="flex items-center gap-2 rounded-lg px-3 py-2">
+                <span
+                  class="flex h-7 w-7 items-center justify-center rounded-full
+                    bg-surface-2 text-xs font-semibold"
+                  >{r.name.slice(0, 1).toUpperCase()}</span
+                >
+                <span class="flex-1 truncate">{r.name}</span>
+                {#if r.role === 'host'}
+                  <span class="text-xs text-text-muted">host</span>
+                {:else if isHost}
+                  <button
+                    class="rounded-md px-2 py-1 text-xs text-danger
+                      hover:bg-surface-2 focus-visible:outline-2
+                      focus-visible:outline-white"
+                    onclick={() => hostActions.kick(r.peerId)}
+                    >{t.people.remove}</button
+                  >
+                {/if}
+              </li>
+            {/each}
+          </ul>
+          {#if isHost}
+            <button
+              class="mt-4 flex w-full items-center gap-2 rounded-lg border
+                border-border px-3 py-2 text-left hover:bg-surface-2
+                focus-visible:outline-2 focus-visible:outline-brand"
+              aria-pressed={session.locked}
+              onclick={() => hostActions.setLocked(!session.locked)}
+            >
+              <Lock size={16} />
+              {t.call.lockMeeting}
+              {#if session.locked}
+                <span class="ml-auto text-xs text-brand">on</span>
+              {/if}
+            </button>
+          {/if}
+        {/if}
+        {#if ui.panel === 'notes'}
+          <p class="text-text-muted">{t.call.aiNotes}</p>
+        {/if}
       </div>
     </aside>
   {/if}

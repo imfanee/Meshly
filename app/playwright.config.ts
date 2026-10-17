@@ -19,7 +19,9 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'npm run build && npm run preview -- --port 4173 --strictPort',
+      // Dev relay on :8787 and a small room cap make e2e hermetic.
+      command:
+        'VITE_DEV_RELAY_URL=ws://localhost:8787 VITE_MAX_PARTICIPANTS=2 npm run build && npm run preview -- --port 4173 --strictPort',
       url: 'http://localhost:4173',
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,

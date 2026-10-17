@@ -5,15 +5,17 @@
   import MeshLogo from '../lib/ui/MeshLogo.svelte';
   import { session, resetSession } from '../lib/stores/session.svelte';
   import { navigate } from '../lib/router.svelte';
+  import { config } from '../config';
 
   const statusText = $derived(
-    {
-      waiting: t.lobby.waiting,
-      'host-away': t.lobby.hostAway,
-      denied: t.lobby.denied,
-      full: t.lobby.full,
-      locked: t.lobby.locked,
-    }[session.lobbyState],
+    session.lobbyState === 'full'
+      ? t.lobby.full(config.maxParticipants)
+      : {
+          waiting: t.lobby.waiting,
+          'host-away': t.lobby.hostAway,
+          denied: t.lobby.denied,
+          locked: t.lobby.locked,
+        }[session.lobbyState],
   );
 
   function cancel() {

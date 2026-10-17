@@ -6,7 +6,7 @@
   import Footer from '../lib/ui/Footer.svelte';
   import MeshLogo from '../lib/ui/MeshLogo.svelte';
   import Tooltip from '../lib/ui/Tooltip.svelte';
-  import { session } from '../lib/stores/session.svelte';
+  import { session, startHost, startGuest } from '../lib/stores/session.svelte';
   import { persistName, settings } from '../lib/stores/settings.svelte';
   import { toast } from '../lib/stores/ui.svelte';
   import { Mic, MicOff, Video, VideoOff, Copy, Share2 } from '@lucide/svelte';
@@ -47,11 +47,19 @@
     copyLink();
   }
 
-  function proceed() {
+  let joining = $state(false);
+
+  async function proceed() {
+    if (joining) return;
+    joining = true;
     persistName(name);
-    // Admission flow lands in T1.5: the host goes straight in, guests knock.
-    session.phase = isHost ? 'call' : 'lobby';
-    session.joinedAt = Date.now();
+    try {
+      if (isHost) await startHost(name || t.call.you);
+      else await startGuest(name || t.call.you, settings.camOn);
+    } catch {
+      toast(t.errors.retry);
+      joining = false;
+    }
   }
 </script>
 

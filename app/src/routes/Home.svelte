@@ -10,7 +10,7 @@
   import { createRoom } from '../lib/core/room/room';
   import { saveHostKey } from '../lib/core/room/hostKeyStore';
   import { persistName, settings } from '../lib/stores/settings.svelte';
-  import { enterRoom } from '../lib/stores/session.svelte';
+  import { enterRoom, setHostIdentity } from '../lib/stores/session.svelte';
   import { toast } from '../lib/stores/ui.svelte';
   import {
     ShieldCheck,
@@ -28,6 +28,7 @@
     persistName(name);
     const room = await createRoom(config.appUrl);
     await saveHostKey(room.link.roomId, room.host);
+    setHostIdentity(room.host);
     enterRoom(room.link, room.url, 'host');
     navigate(
       `/r/${room.link.roomId}#${room.link.roomSecret}.${room.link.hostThumb}`,

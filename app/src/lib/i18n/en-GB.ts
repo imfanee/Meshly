@@ -76,7 +76,7 @@ export const t = {
     waiting: 'Waiting for the host to let you in',
     hostAway: 'The host is not here yet',
     denied: 'The host did not let you in',
-    full: 'This meeting is full (12 people).',
+    full: (n: number) => `This meeting is full (${n} people).`,
     locked: 'This meeting is locked.',
     cancel: 'Cancel',
   },
@@ -119,6 +119,7 @@ export const t = {
 
   people: {
     knocking: 'Asking to join',
+    knockToast: (name: string) => `${name} is asking to join`,
     admit: 'Admit',
     deny: 'Deny',
     admitAll: 'Admit all',

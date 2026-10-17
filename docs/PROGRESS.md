@@ -12,6 +12,13 @@ Format:
 - Commit: <hash>
 ```
 
+## 2026-10-17: T1.5 Lobby and admission
+
+- Changed: `core/room/state.ts` (RoomState + sign/verify per doc 03 s.6), `core/room/membership.ts` (knock loop every 5 s, host-here every 15 s, admit with ticket + roster + signed state, deny with reason, kick, end, bye, capacity via `maxParticipants`, lock that also denies pending knocks, lobby host-away detection). `core/signalling/index.ts` `makeTransports()` (dev relay wins, else Nostr + MQTT, all lazy-imported). Session store now connects the hub and drives membership; PreJoin "Start meeting"/"Ask to join" run the real flows; Room detects a persisted host key to restore host role on reload; Call people panel shows knocks with Admit/Deny, roster with Remove, and a Lock toggle; knock toast for the host. Playwright preview build now sets `VITE_DEV_RELAY_URL` + `VITE_MAX_PARTICIPANTS=2`.
+- Verified: 32 unit tests (membership suite covers admit, deny, locked, full, kick, end over real hubs on an in-memory transport); e2e 12/12 including create/join, deny, lock and capacity with per-participant browser contexts (shared contexts leak IndexedDB host keys, a real bug found and handled). Initial bundle now 48.7 KB gzip; mqtt/nostr chunks lazy-load.
+- Open: `media`/`sdp`/`ice` handlers ignored until T1.6; denied guest re-knock UX is minimal.
+- Commit: pending
+
 ## 2026-10-17: T1.4 Signalling hub
 
 - Changed: `core/signalling/` per doc 03 s.3 and 7: `transport.ts` contract; `nostr.ts` (kind-25050, `t` tag, throwaway Nostr key, paced sends at ~9/s); `mqtt.ts` (WSS, QoS 0, `meshly/v1/` prefix, paced sends, multi-broker fan-out); `devRelay.ts` (WS to `tools/dev-relay.mjs`); `envelope.ts` (`signEnvelope`, `encode`, `ReceivePipeline` with all drop reasons from doc 10); `hub.ts` (publish to every transport, inbound dedupe by ciphertext hash). `tools/dev-relay.mjs` 40-line WS rebroadcaster; `scripts/dev.mjs` runs Vite + relay together; `?e2e=1` harness exposes core modules via a dynamic (code-split) import for tests only.

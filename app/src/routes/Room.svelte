@@ -7,6 +7,7 @@
   import { t } from '../lib/i18n/en-GB';
   import { session } from '../lib/stores/session.svelte';
   import { isIncompleteLink, parseLink } from '../lib/core/room/link';
+  import { loadHostKey } from '../lib/core/room/hostKeyStore';
   import { navigate } from '../lib/router.svelte';
   import PreJoin from './PreJoin.svelte';
   import Lobby from './Lobby.svelte';
@@ -28,6 +29,11 @@
     if (parsed && parsed.roomId === roomId) {
       session.room = parsed;
       session.link ??= window.location.href;
+      // A persisted host key (within 24 h) means this browser is the host,
+      // even after a reload.
+      void loadHostKey(parsed.roomId).then((k) => {
+        session.role = k ? 'host' : 'guest';
+      });
     }
   });
 

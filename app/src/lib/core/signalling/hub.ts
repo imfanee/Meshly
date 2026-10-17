@@ -19,8 +19,8 @@ import type { RoomKeys } from '../crypto/hkdf';
 import type { IdentityKey } from '../crypto/sign';
 
 export interface HubEvents {
-  /** Verified, decrypted envelope ready for dispatch. */
-  onMessage(env: Envelope): void;
+  /** Verified, decrypted envelope plus the resolved signer key. */
+  onMessage(env: Envelope, signer: { peerId: string; spki: string }): void;
   /** Optional observer for tests/debug (drop reasons). */
   onDrop?(reason: DropReason): void;
   onStatus?(status: TransportStatus): void;
@@ -75,7 +75,7 @@ export class SignallingHub {
       this.delivered.delete(this.delivered.values().next().value as string);
     }
     const r = await this.pipeline.receive(payload);
-    if (r.ok) this.events.onMessage(r.env);
+    if (r.ok) this.events.onMessage(r.env, r.signer);
     else this.events.onDrop?.(r.reason);
   }
 
