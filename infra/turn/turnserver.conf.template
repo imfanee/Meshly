@@ -1,0 +1,66 @@
+# Meshly coturn configuration.
+# Rendered by container-setup.sh from infra/turn/turnserver.conf.template.
+# Edit the template in the repo, not this file on the server.
+
+# ---- Network (container behind host NAT) ---------------------------------
+listening-ip=${CT_IP}
+relay-ip=${CT_IP}
+external-ip=${PUBLIC_IP}/${CT_IP}
+listening-port=3478
+tls-listening-port=5349
+min-port=${RELAY_MIN}
+max-port=${RELAY_MAX}
+
+# ---- Identity and auth (TURN REST API, shared secret with turn.php) ---------
+realm=${TURN_DOMAIN}
+server-name=${TURN_DOMAIN}
+use-auth-secret
+static-auth-secret=${TURN_SECRET}
+fingerprint
+
+# ---- TLS (certificate copied here by the certbot deploy hook) -----------------
+cert=/etc/coturn/certs/fullchain.pem
+pkey=/etc/coturn/certs/privkey.pem
+no-tlsv1
+no-tlsv1_1
+
+# ---- Hardening ---------------------------------------------------------------
+no-cli
+no-multicast-peers
+no-tcp-relay
+stale-nonce=600
+
+# Quotas: allocations per credential and in total
+user-quota=6
+total-quota=400
+
+# Bandwidth limits in BYTES per second
+max-bps=${MAX_BPS}
+bps-capacity=${BPS_CAPACITY}
+
+# Never relay to private, loopback, link-local, CGNAT, documentation,
+# benchmarking, multicast or reserved ranges (blocks SSRF into local networks,
+# including this container's own bridge). Our own public IP is NOT listed:
+# the host hairpins relay-to-relay traffic back into the container.
+denied-peer-ip=0.0.0.0-0.255.255.255
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=100.64.0.0-100.127.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.0.0.0-192.0.0.255
+denied-peer-ip=192.0.2.0-192.0.2.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+denied-peer-ip=198.18.0.0-198.19.255.255
+denied-peer-ip=198.51.100.0-198.51.100.255
+denied-peer-ip=203.0.113.0-203.0.113.255
+denied-peer-ip=224.0.0.0-255.255.255.255
+denied-peer-ip=::1
+denied-peer-ip=::ffff:0.0.0.0-::ffff:255.255.255.255
+denied-peer-ip=64:ff9b::-64:ff9b::ffff:ffff
+denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+
+# ---- Logging -----------------------------------------------------------------
+syslog
+simple-log

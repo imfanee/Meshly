@@ -1,0 +1,5 @@
+# Meshly: copied to <docroot>/assets/.htaccess
+# Everything in /assets/ has a content hash in its file name, so it can be cached forever.
+<IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=31536000, immutable"
+</IfModule>

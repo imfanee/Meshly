@@ -1,0 +1,42 @@
+# Secrets (never commit)
+.secrets/
+*.pem
+*.key
+*_key
+*_ed25519
+*_rsa
+.env
+.env.local
+.env.*.local
+app/.env.local
+app/.env.*.local
+
+# Build output (uploaded to cPanel, not versioned)
+web/
+
+# Dependencies and caches
+node_modules/
+app/node_modules/
+.vite/
+.svelte-kit/
+coverage/
+playwright-report/
+test-results/
+blob-report/
+*.tsbuildinfo
+
+# Local recordings and exports from manual testing
+*.webm
+*.mp4
+recordings/
+
+# OS and editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.log
+npm-debug.log*

@@ -1,0 +1,14 @@
+[Unit]
+Description=Meshly TURN NAT and isolation rules
+After=network-online.target pve-firewall.service proxmox-firewall.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/meshly-turn-nat.sh apply
+ExecReload=/usr/local/sbin/meshly-turn-nat.sh apply
+ExecStop=/usr/local/sbin/meshly-turn-nat.sh remove
+
+[Install]
+WantedBy=multi-user.target

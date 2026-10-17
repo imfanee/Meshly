@@ -1,0 +1,17 @@
+<?php
+// Meshly TURN credential configuration.
+//
+// Render to .secrets/meshly-config.php (never commit the real file), then upload
+// to the cPanel HOME folder, for example /home/<user>/meshly-config.php.
+// It must NOT be inside public_html or any document root. Permissions: 600.
+//
+// turn_secret must be identical to coturn's static-auth-secret.
+
+return [
+    'turn_secret'   => 'REPLACE_WITH_64_HEX_CHARS',
+    'turn_host'     => 'turn.example.com',
+    'tls_port'      => 443,
+    'ttl'           => 7200,
+    'rate_per_hour' => 30,
+    'allowed_hosts' => ['meshly.example.com'],
+];
