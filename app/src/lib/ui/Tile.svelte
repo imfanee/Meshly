@@ -24,6 +24,8 @@
     isHost?: boolean;
     canModerate?: boolean;
     onRemove?: () => void;
+    /** Doc 04 s.3: tile visibility -> watch hint to the remote peer. */
+    onVisible?: (visible: boolean) => void;
   }
 
   let {
@@ -40,6 +42,7 @@
     large = false,
     canModerate = false,
     onRemove,
+    onVisible,
   }: Props = $props();
 
   const AVATAR_COLOURS = [
@@ -93,9 +96,21 @@
   }
 
   let menuOpen = $state(false);
+
+  /** IntersectionObserver -> onVisible for the off-screen pause hint. */
+  function observeVisibility(node: HTMLElement) {
+    if (typeof IntersectionObserver === 'undefined' || !onVisible) return;
+    const io = new IntersectionObserver(
+      (entries) => onVisible(entries[0]?.isIntersecting !== false),
+      { threshold: 0.25 },
+    );
+    io.observe(node);
+    return { destroy: () => io.disconnect() };
+  }
 </script>
 
 <div
+  use:observeVisibility
   class="group relative w-full overflow-hidden rounded-xl bg-surface
     {large ? '' : 'aspect-video'}
     {isActive

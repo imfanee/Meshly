@@ -21,7 +21,7 @@ interface MeshlyTest {
   ) => Hub;
   session: {
     chat: { id: string; text: string }[];
-    peers: { peerId: string }[];
+    peers: { peerId: string; name: string; camOn: boolean }[];
     knocks: { name: string }[];
     drops: string[];
     lobbyState: string;

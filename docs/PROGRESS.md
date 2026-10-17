@@ -162,3 +162,10 @@ Format:
 - Verified: `npm run check` clean; slots e2e passes (host revokes guest camera, camOn flips false remotely).
 - Open: full-room deny path needs 7+ contexts, exercised via the same ctl round-trip as the verified revoke path.
 - Commit: pending
+
+## 2026-10-18: T2.4 Bitrate policy and off-screen pause
+
+- Changed: `applyBitratePolicy` now counts video senders in the room (self when sending + peers with camOn) and applies the doc 04 s.3 table (1500/800/450 kbps, scale 1/1.5/2, 30/24/20 fps); a peer relayed via TURN gets its own encoding capped at 500 kbps, scale >= 2, 20 fps; screen senders get 1500 kbps (1000 relayed) at 15 fps; `watch` ctl message lets a peer pause my camera encoding to it (`active: false`) when my tile is off its screen for 10 s (IntersectionObserver on tiles, immediate resume on visible).
+- Verified: `npm run check` clean; bitrate e2e passes (guest sender params show 1,500 kbps / scale 1 / 30 fps at two senders).
+- Open: 4- and 6-sender tiers need more e2e contexts than the cap allows; policy math is table-driven so tiers are covered by the same code path.
+- Commit: pending

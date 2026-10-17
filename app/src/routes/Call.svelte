@@ -21,6 +21,7 @@
     localScreenStream,
     shareScreen,
     stopShare,
+    reportWatching,
     sendChat,
     sendReact,
     setHand,
@@ -308,6 +309,7 @@
                 quality={p.quality}
                 canModerate={isHost}
                 onRemove={() => hostActions.kick(p.peerId)}
+                onVisible={(v) => reportWatching(p.peerId, v)}
               />
             </div>
           {/each}
@@ -361,6 +363,7 @@
                 quality={p.quality}
                 canModerate={isHost}
                 onRemove={() => hostActions.kick(p.peerId)}
+                onVisible={(v) => reportWatching(p.peerId, v)}
               />
             </div>
           {/each}
@@ -394,6 +397,7 @@
             quality={p.quality}
             canModerate={isHost}
             onRemove={() => hostActions.kick(p.peerId)}
+            onVisible={(v) => reportWatching(p.peerId, v)}
           />
         {/each}
       </div>

@@ -637,6 +637,48 @@ export function stopShare(): void {
   session.announce = 'You stopped sharing';
 }
 
+// ---- Off-screen pause (doc 04 s.3): tell peers when their tile hides -------
+
+// eslint-disable-next-line svelte/prefer-svelte-reactivity -- debounce timers, not state
+const watchTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+/** Tile visibility: immediate `watch:true`, `watch:false` only after 10 s. */
+export function reportWatching(peerId: string, visible: boolean): void {
+  const send = (watching: boolean) =>
+    peerManager?.sendCtlTo(peerId, {
+      t: 'watch',
+      id: crypto.randomUUID(),
+      ts: Date.now(),
+      b: { watching },
+    });
+  if (visible) {
+    const t = watchTimers.get(peerId);
+    if (t) {
+      clearTimeout(t);
+      watchTimers.delete(peerId);
+    }
+    send(true);
+    return;
+  }
+  if (watchTimers.has(peerId)) return;
+  watchTimers.set(
+    peerId,
+    setTimeout(() => {
+      watchTimers.delete(peerId);
+      send(false);
+    }, 10_000),
+  );
+}
+
+/** Test hook: sender encoding parameters for a peer's camera sender. */
+export function debugEncoding(peerId: string): RTCRtpEncodingParameters | null {
+  const p = (
+    peerManager as unknown as { peers: Map<string, { pc: RTCPeerConnection }> }
+  )?.peers.get(peerId);
+  const sender = p?.pc.getTransceivers()[1]?.sender;
+  return sender?.getParameters().encodings?.[0] ?? null;
+}
+
 /** Test hook: inject a ctl message as if it arrived from a peer. */
 export function debugInjectCtl(peerId: string, msg: CtlMessage): void {
   peerManager?.handleCtl(peerId, msg);

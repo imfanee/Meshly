@@ -48,6 +48,8 @@ const peerMedia = new Map<
 >();
 /** Remote peer -> mid of its screen-share transceiver (from `tracks` ctl). */
 const screenMids = new Map<string, string>();
+/** Peer -> whether it says my tile is on-screen (default true). */
+const peerWatches = new Map<string, boolean>();
 const peerLinks = new Map<
   string,
   { link: LinkKind; quality: LinkQuality; rttMs: number; lossPct: number }
@@ -182,6 +184,11 @@ export class PeerManager {
       if (typeof m.b.mid === 'string') screenMids.set(peerId, m.b.mid);
       else screenMids.delete(peerId);
       this.notify();
+      return;
+    }
+    if (m.t === 'watch' && m.b) {
+      // Peer says whether my tile is on its screen; pause when hidden.
+      this.setWatching(peerId, m.b.watching !== false);
       return;
     }
     this.events.onCtl?.(peerId, data as CtlMessage);
@@ -373,22 +380,55 @@ export class PeerManager {
     this.notify();
   }
 
-  /** Doc 04 section 3: scale camera bitrate by remote receiver count. */
-  applyBitratePolicy(relayed = false): void {
-    const n = Math.max(1, this.peers.size);
-    const kbps = relayed ? 500 : n <= 2 ? 1500 : n <= 4 ? 800 : 450;
-    const scale = relayed ? 2 : n <= 2 ? 1 : n <= 4 ? 1.5 : 2;
-    const fps = relayed ? 20 : n <= 2 ? 30 : n <= 4 ? 24 : 20;
+  /**
+   * Doc 04 s.3: scale camera bitrate by the number of video senders in the
+   * room (n). A peer relayed via TURN gets min(kbps, 500), scale >= 2, 20 fps
+   * for its own encoding. Screen senders: 1,500 kbps (1,000 relayed), 15 fps.
+   * Peers who have my tile off-screen (watch hint) get `active: false`.
+   */
+  /** Camera senders in the room: me (if sending video) + peers with camOn. */
+  private videoSenderCount(): number {
+    const mine = this.media.snapshot().video ? 1 : 0;
+    return mine + [...peerMedia.values()].filter((m) => m.camOn).length;
+  }
+
+  applyBitratePolicy(videoSenders = this.videoSenderCount()): void {
+    const n = Math.max(1, videoSenders);
+    const kbps = n <= 2 ? 1500 : n <= 4 ? 800 : 450;
+    const scale = n <= 2 ? 1 : n <= 4 ? 1.5 : 2;
+    const fps = n <= 2 ? 30 : n <= 4 ? 24 : 20;
     for (const p of this.peers.values()) {
-      const sender = p.pc.getTransceivers()[1]?.sender;
-      if (!sender) continue;
-      const params = sender.getParameters();
-      if (!params.encodings?.length) params.encodings = [{}];
-      params.encodings[0].maxBitrate = kbps * 1000;
-      params.encodings[0].scaleResolutionDownBy = scale;
-      params.encodings[0].maxFramerate = fps;
-      void sender.setParameters(params).catch(() => undefined);
+      const relayed = peerLinks.get(p.peerId)?.link === 'relayed';
+      const watching = peerWatches.get(p.peerId) !== false;
+      const cam = p.pc.getTransceivers()[1]?.sender;
+      if (cam) {
+        const params = cam.getParameters();
+        if (!params.encodings?.length) params.encodings = [{}];
+        params.encodings[0].maxBitrate =
+          Math.min(relayed ? 500 : Infinity, kbps) * 1000;
+        params.encodings[0].scaleResolutionDownBy = relayed
+          ? Math.max(2, scale)
+          : scale;
+        params.encodings[0].maxFramerate = relayed ? 20 : fps;
+        params.encodings[0].active = watching;
+        void cam.setParameters(params).catch(() => undefined);
+      }
+      const ss = this.screenSenders.get(p.peerId);
+      if (ss) {
+        const sp = ss.getParameters();
+        if (!sp.encodings?.length) sp.encodings = [{}];
+        sp.encodings[0].maxBitrate = relayed ? 1_000_000 : 1_500_000;
+        sp.encodings[0].maxFramerate = 15;
+        void ss.setParameters(sp).catch(() => undefined);
+      }
     }
+  }
+
+  /** A peer's hint about whether my tile is on-screen (doc 04 s.3). */
+  setWatching(peerId: string, watching: boolean): void {
+    if (peerWatches.get(peerId) === watching) return;
+    peerWatches.set(peerId, watching);
+    this.applyBitratePolicy();
   }
 
   /** Route an sdp/ice envelope to the right peer. */
@@ -407,6 +447,7 @@ export class PeerManager {
     this.peers.delete(peerId);
     peerMedia.delete(peerId);
     peerLinks.delete(peerId);
+    peerWatches.delete(peerId);
     this.events.onPeerLeft?.(peerId);
     this.notify();
   }

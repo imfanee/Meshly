@@ -14,4 +14,5 @@ export {
   session,
   debugPeers,
   debugInjectCtl,
+  debugEncoding,
 } from '../../stores/session.svelte';
