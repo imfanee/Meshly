@@ -11,7 +11,15 @@
   import { toast } from '../lib/stores/ui.svelte';
   import { localMedia } from '../lib/core/media/localMedia';
   import { activeSpeaker } from '../lib/core/media/activeSpeaker';
-  import { Mic, MicOff, Video, VideoOff, Copy, Share2 } from '@lucide/svelte';
+  import {
+    Mic,
+    MicOff,
+    Video,
+    VideoOff,
+    Copy,
+    Share2,
+    LoaderCircle,
+  } from '@lucide/svelte';
   import { onMount } from 'svelte';
 
   let name = $state(settings.displayName);
@@ -197,11 +205,21 @@
     <Button
       size="lg"
       class="w-full"
-      disabled={name.trim().length === 0}
+      disabled={name.trim().length === 0 || joining}
       onclick={proceed}
     >
-      {isHost ? t.prejoin.startMeeting : t.prejoin.askToJoin}
+      {#if joining}
+        <LoaderCircle size={18} class="animate-spin" aria-hidden="true" />
+        {t.prejoin.connecting}
+      {:else}
+        {isHost ? t.prejoin.startMeeting : t.prejoin.askToJoin}
+      {/if}
     </Button>
+    {#if joining}
+      <p class="mt-2 text-center text-xs text-text-muted" role="status">
+        {t.prejoin.connectingHint}
+      </p>
+    {/if}
 
     {#if isHost && session.link}
       <div class="mt-2 rounded-xl border border-border bg-surface p-4">

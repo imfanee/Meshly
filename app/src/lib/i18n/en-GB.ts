@@ -63,6 +63,8 @@ export const t = {
     nameLabel: 'Your name',
     startMeeting: 'Start meeting',
     askToJoin: 'Ask to join',
+    connecting: 'Connecting…',
+    connectingHint: 'Setting up a secure room, this can take a few seconds.',
     joinWithoutCamera: 'Join without camera',
     permissionPrompt:
       'Meshly needs your camera and microphone. Your video goes directly to other participants.',

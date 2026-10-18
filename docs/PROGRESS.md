@@ -296,3 +296,9 @@ Format:
 - e2e infra fix: since f127982 gated devRelayUrl on import.meta.env.DEV, preview builds silently fell back to public relays, making e2e flaky. Added VITE_E2E=1 opt-in in playwright.config; production builds never set it, so the dev-relay URL still compiles out (verified: no localhost:8787 in production web/).
 - Verified: check clean, build clean, floatpanel + qr e2e 4/4.
 - Commit: pending
+
+## 2026-10-18: Prejoin "Start meeting" looked dead
+
+- The prejoin Start meeting / Ask to join button ran startHost/startGuest (signalling connect takes seconds on public relays) with no visual feedback: joining state existed but the button neither disabled nor showed progress. Now it disables, shows a spinner + "Connecting…", and a hint line explains the wait.
+- Verified: check clean, build clean.
+- Commit: pending
