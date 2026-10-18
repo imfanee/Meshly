@@ -38,11 +38,13 @@ export const config = {
   mqttBrokers: csv(import.meta.env.VITE_MQTT_BROKERS),
 
   /** Local dev relay used by e2e tests only; never set in production. */
-  // Dev-only transport: Vite still merges .env in production builds, so the
-  // URL must be compiled out rather than merely unset in .env.production.
-  devRelayUrl: import.meta.env.DEV
-    ? import.meta.env.VITE_DEV_RELAY_URL || null
-    : null,
+  // Dev-only transport: Vite merges app/.env into production builds, so the
+  // URL must be gated. Dev servers get it; e2e preview builds opt in with
+  // VITE_E2E=1; production builds never set VITE_E2E so it compiles out.
+  devRelayUrl:
+    import.meta.env.DEV || import.meta.env.VITE_E2E === '1'
+      ? import.meta.env.VITE_DEV_RELAY_URL || null
+      : null,
 
   maxParticipants: int(import.meta.env.VITE_MAX_PARTICIPANTS, 12),
   maxVideo: int(import.meta.env.VITE_MAX_VIDEO, 6),

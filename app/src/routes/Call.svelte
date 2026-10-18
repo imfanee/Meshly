@@ -11,6 +11,8 @@
   import Dialog from '../lib/ui/Dialog.svelte';
   import QrCode from '../lib/ui/QrCode.svelte';
   import Sheet from '../lib/ui/Sheet.svelte';
+  import FloatPanel from '../lib/ui/FloatPanel.svelte';
+  import { MediaQuery } from 'svelte/reactivity';
   import Tabs from '../lib/ui/Tabs.svelte';
   import Tooltip from '../lib/ui/Tooltip.svelte';
   import {
@@ -111,6 +113,12 @@
   let leaveMenu = $state(false);
   let copied = $state(false);
   let qrOpen = $state(false);
+  const isMobile = new MediaQuery('(max-width: 767px)');
+  const panelTitle = {
+    chat: t.call.chat,
+    people: t.call.people,
+    notes: t.call.notes,
+  };
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
   /** Grid on desktop, speaker on mobile (doc 05). */
   let layout = $state<'grid' | 'speaker'>(
@@ -502,360 +510,374 @@
     {/if}
   </main>
 
-  <!-- Side panel: 360px column on desktop, full-screen overlay on mobile. -->
-  {#if ui.panel}
-    <aside
-      class="absolute inset-0 z-30 flex flex-col bg-surface p-4 md:inset-y-0
-        md:left-auto md:right-0 md:w-[360px] md:border-l md:border-border"
-    >
-      <div class="mb-3 flex items-center justify-between">
-        <div class="flex-1">
-          <Tabs
-            active={ui.panel ?? 'chat'}
-            label="Meeting panel"
-            items={[
-              { id: 'chat', label: t.call.chat },
-              { id: 'people', label: t.call.people },
-              { id: 'notes', label: t.call.notes },
-            ]}
-            onchange={(id) => (ui.panel = id as typeof ui.panel)}
-          />
-        </div>
-        <button
-          class="ml-3 rounded-lg px-2 py-1 text-text-muted hover:bg-surface-2
-            focus-visible:outline-2 focus-visible:outline-brand"
-          aria-label="Close panel"
-          onclick={() => (ui.panel = null)}>&times;</button
-        >
+  <!-- Side panel: docked 360px column on desktop; on mobile a floating
+       draggable/resizable window so video and controls stay visible. -->
+  {#snippet panelBody()}
+    <div class="mb-3 flex items-center justify-between">
+      <div class="flex-1">
+        <Tabs
+          active={ui.panel ?? 'chat'}
+          label="Meeting panel"
+          items={[
+            { id: 'chat', label: t.call.chat },
+            { id: 'people', label: t.call.people },
+            { id: 'notes', label: t.call.notes },
+          ]}
+          onchange={(id) => (ui.panel = id as typeof ui.panel)}
+        />
       </div>
-      <div class="flex-1 overflow-y-auto text-sm">
-        {#if ui.panel === 'chat'}
-          <div class="flex h-full min-h-0 flex-col">
-            <ul
-              class="flex-1 space-y-3 overflow-y-auto pr-1"
-              aria-label="Chat messages"
-            >
-              {#each session.files as f (f.id + f.peerId)}
-                <li
-                  class="rounded-lg border border-border px-3 py-2 text-xs"
-                  data-file={f.id}
-                >
-                  <span class="font-medium">{f.name}</span>
-                  <span class="text-text-muted">
-                    ({Math.ceil(f.size / 1024)} KB, {f.direction === 'in'
-                      ? 'from'
-                      : 'to'}
-                    {session.roster.find((r) => r.peerId === f.peerId)?.name ??
-                      'peer'})</span
-                  >
-                  {#if f.state === 'streaming'}
-                    <span class="ml-1 text-text-muted"
-                      >{Math.round((f.progress / f.size) * 100)}%</span
-                    >
-                    <button
-                      class="ml-2 text-danger"
-                      onclick={() => void cancelFile(f.id)}>Cancel</button
-                    >
-                  {:else if f.state === 'offered' && f.direction === 'in'}
-                    <button
-                      class="ml-2 rounded bg-brand px-2 py-0.5 text-[#04211d]"
-                      onclick={() => void acceptFile(f.id, f.peerId)}
-                      >Accept</button
-                    >
-                    <button
-                      class="ml-1 text-text-muted"
-                      onclick={() => void declineFile(f.id, f.peerId)}
-                      >Decline</button
-                    >
-                  {:else if f.state === 'offered'}
-                    <span class="ml-1 text-text-muted">waiting…</span>
-                  {:else if f.state === 'done' && f.direction === 'in'}
-                    <button
-                      class="ml-2 rounded bg-brand px-2 py-0.5 text-[#04211d]"
-                      onclick={() => void saveFile(f)}>Save</button
-                    >
-                  {:else if f.state === 'done'}
-                    <span class="ml-1 text-text-muted">sent</span>
-                  {:else if f.state === 'failed'}
-                    <span class="ml-1 text-danger">failed</span>
-                  {/if}
-                </li>
-              {/each}
-              {#each session.chat as m (m.id)}
-                <li>
-                  <div class="flex items-baseline gap-2">
-                    <span class="text-xs font-semibold">{m.name}</span>
-                    <span class="text-[10px] text-text-muted">
-                      {new Date(m.ts).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </span>
-                  </div>
-                  <p
-                    class="mt-0.5 whitespace-pre-wrap break-words rounded-lg
-                      {m.self ? 'bg-brand/15' : 'bg-surface-2'} px-2.5 py-1.5"
-                  >
-                    {m.text}
-                  </p>
-                </li>
-              {:else}
-                <p class="text-sm text-text-muted">No messages yet.</p>
-              {/each}
-            </ul>
-            <form class="mt-3 flex gap-2" onsubmit={submitChat}>
-              <label
-                class="cursor-pointer rounded-lg border border-border px-3
-                  py-2 text-sm hover:bg-surface-2"
-                title="Send a file"
-              >
-                <input
-                  type="file"
-                  class="sr-only"
-                  onchange={(e) => {
-                    const f = (e.target as HTMLInputElement).files?.[0];
-                    if (f) void sendFile(f);
-                    (e.target as HTMLInputElement).value = '';
-                  }}
-                />
-                📎
-              </label>
-              <input
-                class="min-w-0 flex-1 rounded-lg border border-border
-                  bg-surface-2 px-3 py-2 text-sm
-                  focus-visible:outline-2 focus-visible:outline-brand"
-                placeholder={t.chat.placeholder}
-                bind:value={draft}
-                aria-label={t.chat.placeholder}
-              />
-              <button
-                type="submit"
-                class="rounded-lg bg-brand px-3 py-2 text-sm font-medium
-                  text-[#04211d] hover:opacity-90
-                  focus-visible:outline-2 focus-visible:outline-white"
-                disabled={!draft.trim()}>{t.chat.send}</button
-              >
-            </form>
-          </div>
-        {/if}
-        {#if ui.panel === 'people'}
-          {#if isHost && session.knocks.length > 0}
-            <h3
-              class="mb-1 text-xs font-semibold uppercase tracking-wide
-              text-text-muted"
-            >
-              {t.people.knocking}
-            </h3>
-            <ul class="mb-4 space-y-1" aria-label={t.people.knocking}>
-              {#each session.knocks as k (k.peerId)}
-                <li
-                  class="flex items-center gap-2 rounded-lg border
-                    border-border bg-surface-2 px-3 py-2"
-                >
-                  <span class="flex-1 truncate">{k.name}</span>
-                  <button
-                    class="rounded-md bg-brand px-2.5 py-1 text-xs font-medium
-                      text-[#04211d] hover:opacity-90
-                      focus-visible:outline-2 focus-visible:outline-white"
-                    onclick={() => hostActions.admit(k.peerId)}
-                    >{t.people.admit}</button
-                  >
-                  <button
-                    class="rounded-md bg-border px-2.5 py-1 text-xs font-medium
-                      hover:opacity-90 focus-visible:outline-2
-                      focus-visible:outline-white"
-                    onclick={() => hostActions.deny(k.peerId)}
-                    >{t.people.deny}</button
-                  >
-                </li>
-              {/each}
-            </ul>
-          {/if}
-          <h3
-            class="mb-1 text-xs font-semibold uppercase tracking-wide
-            text-text-muted"
+      <button
+        class="ml-3 rounded-lg px-2 py-1 text-text-muted hover:bg-surface-2
+            focus-visible:outline-2 focus-visible:outline-brand"
+        aria-label="Close panel"
+        onclick={() => (ui.panel = null)}>&times;</button
+      >
+    </div>
+    <div class="flex-1 overflow-y-auto text-sm">
+      {#if ui.panel === 'chat'}
+        <div class="flex h-full min-h-0 flex-col">
+          <ul
+            class="flex-1 space-y-3 overflow-y-auto pr-1"
+            aria-label="Chat messages"
           >
-            {t.people.participants}
-          </h3>
-          <ul class="space-y-1" aria-label={t.people.participants}>
-            {#each session.roster as r (r.peerId)}
-              <li class="flex items-center gap-2 rounded-lg px-3 py-2">
-                <span
-                  class="flex h-7 w-7 items-center justify-center rounded-full
-                    bg-surface-2 text-xs font-semibold"
-                  >{r.name.slice(0, 1).toUpperCase()}</span
+            {#each session.files as f (f.id + f.peerId)}
+              <li
+                class="rounded-lg border border-border px-3 py-2 text-xs"
+                data-file={f.id}
+              >
+                <span class="font-medium">{f.name}</span>
+                <span class="text-text-muted">
+                  ({Math.ceil(f.size / 1024)} KB, {f.direction === 'in'
+                    ? 'from'
+                    : 'to'}
+                  {session.roster.find((r) => r.peerId === f.peerId)?.name ??
+                    'peer'})</span
                 >
-                <span class="flex-1 truncate">{r.name}</span>
-                {#if r.role === 'host'}
-                  <span class="text-xs text-text-muted">host</span>
-                {:else if isHost}
-                  {#if session.peers.find((p) => p.peerId === r.peerId)?.hand}
-                    <button
-                      class="rounded-md px-2 py-1 text-xs
-                        hover:bg-surface-2 focus-visible:outline-2
-                        focus-visible:outline-white"
-                      title="Lower hand"
-                      onclick={() => hostActions.lowerHand(r.peerId)}
-                      >Hand down</button
-                    >
-                  {/if}
-                  {#if session.peers.find((p) => p.peerId === r.peerId)?.camOn}
-                    <button
-                      class="rounded-md px-2 py-1 text-xs
-                        hover:bg-surface-2 focus-visible:outline-2
-                        focus-visible:outline-white"
-                      onclick={() => hostActions.revokeSlot(r.peerId)}
-                      >Camera off</button
-                    >
-                  {/if}
-                  <button
-                    class="rounded-md px-2 py-1 text-xs
-                      hover:bg-surface-2 focus-visible:outline-2
-                      focus-visible:outline-white"
-                    onclick={() => hostActions.askMute(r.peerId)}
-                    >{t.people.askToMute}</button
+                {#if f.state === 'streaming'}
+                  <span class="ml-1 text-text-muted"
+                    >{Math.round((f.progress / f.size) * 100)}%</span
                   >
                   <button
-                    class="rounded-md px-2 py-1 text-xs text-danger
-                      hover:bg-surface-2 focus-visible:outline-2
-                      focus-visible:outline-white"
-                    onclick={() => hostActions.kick(r.peerId)}
-                    >{t.people.remove}</button
+                    class="ml-2 text-danger"
+                    onclick={() => void cancelFile(f.id)}>Cancel</button
                   >
+                {:else if f.state === 'offered' && f.direction === 'in'}
+                  <button
+                    class="ml-2 rounded bg-brand px-2 py-0.5 text-[#04211d]"
+                    onclick={() => void acceptFile(f.id, f.peerId)}
+                    >Accept</button
+                  >
+                  <button
+                    class="ml-1 text-text-muted"
+                    onclick={() => void declineFile(f.id, f.peerId)}
+                    >Decline</button
+                  >
+                {:else if f.state === 'offered'}
+                  <span class="ml-1 text-text-muted">waiting…</span>
+                {:else if f.state === 'done' && f.direction === 'in'}
+                  <button
+                    class="ml-2 rounded bg-brand px-2 py-0.5 text-[#04211d]"
+                    onclick={() => void saveFile(f)}>Save</button
+                  >
+                {:else if f.state === 'done'}
+                  <span class="ml-1 text-text-muted">sent</span>
+                {:else if f.state === 'failed'}
+                  <span class="ml-1 text-danger">failed</span>
                 {/if}
               </li>
             {/each}
+            {#each session.chat as m (m.id)}
+              <li>
+                <div class="flex items-baseline gap-2">
+                  <span class="text-xs font-semibold">{m.name}</span>
+                  <span class="text-[10px] text-text-muted">
+                    {new Date(m.ts).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+                <p
+                  class="mt-0.5 whitespace-pre-wrap break-words rounded-lg
+                      {m.self ? 'bg-brand/15' : 'bg-surface-2'} px-2.5 py-1.5"
+                >
+                  {m.text}
+                </p>
+              </li>
+            {:else}
+              <p class="text-sm text-text-muted">No messages yet.</p>
+            {/each}
           </ul>
-          {#if isHost}
+          <form class="mt-3 flex gap-2" onsubmit={submitChat}>
+            <label
+              class="cursor-pointer rounded-lg border border-border px-3
+                  py-2 text-sm hover:bg-surface-2"
+              title="Send a file"
+            >
+              <input
+                type="file"
+                class="sr-only"
+                onchange={(e) => {
+                  const f = (e.target as HTMLInputElement).files?.[0];
+                  if (f) void sendFile(f);
+                  (e.target as HTMLInputElement).value = '';
+                }}
+              />
+              📎
+            </label>
+            <input
+              class="min-w-0 flex-1 rounded-lg border border-border
+                  bg-surface-2 px-3 py-2 text-sm
+                  focus-visible:outline-2 focus-visible:outline-brand"
+              placeholder={t.chat.placeholder}
+              bind:value={draft}
+              aria-label={t.chat.placeholder}
+            />
             <button
-              class="mt-4 flex w-full items-center gap-2 rounded-lg border
+              type="submit"
+              class="rounded-lg bg-brand px-3 py-2 text-sm font-medium
+                  text-[#04211d] hover:opacity-90
+                  focus-visible:outline-2 focus-visible:outline-white"
+              disabled={!draft.trim()}>{t.chat.send}</button
+            >
+          </form>
+        </div>
+      {/if}
+      {#if ui.panel === 'people'}
+        {#if isHost && session.knocks.length > 0}
+          <h3
+            class="mb-1 text-xs font-semibold uppercase tracking-wide
+              text-text-muted"
+          >
+            {t.people.knocking}
+          </h3>
+          <ul class="mb-4 space-y-1" aria-label={t.people.knocking}>
+            {#each session.knocks as k (k.peerId)}
+              <li
+                class="flex items-center gap-2 rounded-lg border
+                    border-border bg-surface-2 px-3 py-2"
+              >
+                <span class="flex-1 truncate">{k.name}</span>
+                <button
+                  class="rounded-md bg-brand px-2.5 py-1 text-xs font-medium
+                      text-[#04211d] hover:opacity-90
+                      focus-visible:outline-2 focus-visible:outline-white"
+                  onclick={() => hostActions.admit(k.peerId)}
+                  >{t.people.admit}</button
+                >
+                <button
+                  class="rounded-md bg-border px-2.5 py-1 text-xs font-medium
+                      hover:opacity-90 focus-visible:outline-2
+                      focus-visible:outline-white"
+                  onclick={() => hostActions.deny(k.peerId)}
+                  >{t.people.deny}</button
+                >
+              </li>
+            {/each}
+          </ul>
+        {/if}
+        <h3
+          class="mb-1 text-xs font-semibold uppercase tracking-wide
+            text-text-muted"
+        >
+          {t.people.participants}
+        </h3>
+        <ul class="space-y-1" aria-label={t.people.participants}>
+          {#each session.roster as r (r.peerId)}
+            <li class="flex items-center gap-2 rounded-lg px-3 py-2">
+              <span
+                class="flex h-7 w-7 items-center justify-center rounded-full
+                    bg-surface-2 text-xs font-semibold"
+                >{r.name.slice(0, 1).toUpperCase()}</span
+              >
+              <span class="flex-1 truncate">{r.name}</span>
+              {#if r.role === 'host'}
+                <span class="text-xs text-text-muted">host</span>
+              {:else if isHost}
+                {#if session.peers.find((p) => p.peerId === r.peerId)?.hand}
+                  <button
+                    class="rounded-md px-2 py-1 text-xs
+                        hover:bg-surface-2 focus-visible:outline-2
+                        focus-visible:outline-white"
+                    title="Lower hand"
+                    onclick={() => hostActions.lowerHand(r.peerId)}
+                    >Hand down</button
+                  >
+                {/if}
+                {#if session.peers.find((p) => p.peerId === r.peerId)?.camOn}
+                  <button
+                    class="rounded-md px-2 py-1 text-xs
+                        hover:bg-surface-2 focus-visible:outline-2
+                        focus-visible:outline-white"
+                    onclick={() => hostActions.revokeSlot(r.peerId)}
+                    >Camera off</button
+                  >
+                {/if}
+                <button
+                  class="rounded-md px-2 py-1 text-xs
+                      hover:bg-surface-2 focus-visible:outline-2
+                      focus-visible:outline-white"
+                  onclick={() => hostActions.askMute(r.peerId)}
+                  >{t.people.askToMute}</button
+                >
+                <button
+                  class="rounded-md px-2 py-1 text-xs text-danger
+                      hover:bg-surface-2 focus-visible:outline-2
+                      focus-visible:outline-white"
+                  onclick={() => hostActions.kick(r.peerId)}
+                  >{t.people.remove}</button
+                >
+              {/if}
+            </li>
+          {/each}
+        </ul>
+        {#if isHost}
+          <button
+            class="mt-4 flex w-full items-center gap-2 rounded-lg border
                 border-border px-3 py-2 text-left hover:bg-surface-2
                 focus-visible:outline-2 focus-visible:outline-brand"
-              aria-pressed={session.locked}
-              onclick={() => hostActions.setLocked(!session.locked)}
-            >
-              <Lock size={16} />
-              {t.call.lockMeeting}
-              {#if session.locked}
-                <span class="ml-auto text-xs text-brand">on</span>
-              {/if}
-            </button>
-          {/if}
+            aria-pressed={session.locked}
+            onclick={() => hostActions.setLocked(!session.locked)}
+          >
+            <Lock size={16} />
+            {t.call.lockMeeting}
+            {#if session.locked}
+              <span class="ml-auto text-xs text-brand">on</span>
+            {/if}
+          </button>
         {/if}
-        {#if ui.panel === 'notes'}
-          {#if session.noteTaker === session.peerId}
-            <p class="text-sm">
-              You are running AI notes.
-              {notesConsentedCount}
-              {notesConsentedCount === 1 ? 'person has' : 'people have'} consented.
+      {/if}
+      {#if ui.panel === 'notes'}
+        {#if session.noteTaker === session.peerId}
+          <p class="text-sm">
+            You are running AI notes.
+            {notesConsentedCount}
+            {notesConsentedCount === 1 ? 'person has' : 'people have'} consented.
+          </p>
+          <button
+            class="mt-2 rounded-lg border border-border px-3 py-2 text-sm
+                hover:bg-surface-2"
+            onclick={stopNotes}>Stop AI notes</button
+          >
+          {#if session.notesText}
+            <div
+              class="mt-3 whitespace-pre-wrap rounded-lg bg-surface-2 p-3
+                  text-sm"
+            >
+              {session.notesText}
+            </div>
+          {/if}
+          {#if session.notesModelLoading}
+            <p class="mt-3 text-sm text-text-muted" role="status">
+              {t.call.notesModelLoading}
             </p>
+          {/if}
+          {#if session.transcript.length}
+            <div class="mt-3 space-y-1 text-xs">
+              {#each session.transcript.slice(-40) as line (line.ts + line.text)}
+                <p>
+                  <span class="font-medium">{line.speaker}</span>
+                  <span class="text-text-muted">
+                    {new Date(line.ts).toLocaleTimeString('en-GB')}</span
+                  >
+                  {line.text}
+                </p>
+              {/each}
+            </div>
+          {/if}
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button
+              class="rounded-lg border border-border px-3 py-2 text-sm
+                  hover:bg-surface-2 disabled:opacity-50"
+              disabled={session.notesBusy}
+              onclick={() => void updateNotes()}
+              >{session.notesBusy ? 'Working…' : 'Update notes'}</button
+            >
+            <button
+              class="rounded-lg border border-border px-3 py-2 text-sm
+                  hover:bg-surface-2"
+              onclick={() => downloadNotes()}>Download notes (.md)</button
+            >
+            <button
+              class="rounded-lg border border-border px-3 py-2 text-sm
+                  hover:bg-surface-2"
+              onclick={shareNotes}>Share with everyone</button
+            >
+            <button
+              class="rounded-lg border border-border px-3 py-2 text-sm
+                  text-danger hover:bg-surface-2"
+              onclick={() => void finalNotes().then(stopNotes)}
+              >End AI notes</button
+            >
+          </div>
+        {:else if session.noteTaker}
+          <p class="text-sm">
+            {session.roster.find((r) => r.peerId === session.noteTaker)?.name ??
+              'A participant'}
+            is running AI notes{session.notesConsent === true
+              ? ' on your voice'
+              : ''}.
+          </p>
+          {#if session.notesConsent === true}
             <button
               class="mt-2 rounded-lg border border-border px-3 py-2 text-sm
-                hover:bg-surface-2"
-              onclick={stopNotes}>Stop AI notes</button
+                  hover:bg-surface-2"
+              onclick={revokeNotesConsent}>Revoke my consent</button
             >
-            {#if session.notesText}
-              <div
-                class="mt-3 whitespace-pre-wrap rounded-lg bg-surface-2 p-3
-                  text-sm"
-              >
-                {session.notesText}
-              </div>
-            {/if}
-            {#if session.notesModelLoading}
-              <p class="mt-3 text-sm text-text-muted" role="status">
-                {t.call.notesModelLoading}
-              </p>
-            {/if}
-            {#if session.transcript.length}
-              <div class="mt-3 space-y-1 text-xs">
-                {#each session.transcript.slice(-40) as line (line.ts + line.text)}
-                  <p>
-                    <span class="font-medium">{line.speaker}</span>
-                    <span class="text-text-muted">
-                      {new Date(line.ts).toLocaleTimeString('en-GB')}</span
-                    >
-                    {line.text}
-                  </p>
-                {/each}
-              </div>
-            {/if}
-            <div class="mt-3 flex flex-wrap gap-2">
-              <button
-                class="rounded-lg border border-border px-3 py-2 text-sm
-                  hover:bg-surface-2 disabled:opacity-50"
-                disabled={session.notesBusy}
-                onclick={() => void updateNotes()}
-                >{session.notesBusy ? 'Working…' : 'Update notes'}</button
-              >
-              <button
-                class="rounded-lg border border-border px-3 py-2 text-sm
-                  hover:bg-surface-2"
-                onclick={() => downloadNotes()}>Download notes (.md)</button
-              >
-              <button
-                class="rounded-lg border border-border px-3 py-2 text-sm
-                  hover:bg-surface-2"
-                onclick={shareNotes}>Share with everyone</button
-              >
-              <button
-                class="rounded-lg border border-border px-3 py-2 text-sm
-                  text-danger hover:bg-surface-2"
-                onclick={() => void finalNotes().then(stopNotes)}
-                >End AI notes</button
-              >
-            </div>
-          {:else if session.noteTaker}
-            <p class="text-sm">
-              {session.roster.find((r) => r.peerId === session.noteTaker)
-                ?.name ?? 'A participant'}
-              is running AI notes{session.notesConsent === true
-                ? ' on your voice'
-                : ''}.
-            </p>
-            {#if session.notesConsent === true}
-              <button
-                class="mt-2 rounded-lg border border-border px-3 py-2 text-sm
-                  hover:bg-surface-2"
-                onclick={revokeNotesConsent}>Revoke my consent</button
-              >
-            {:else}
-              <p class="text-xs text-text-muted">
-                Your voice is not being transcribed.
-              </p>
-            {/if}
           {:else}
-            <p class="text-text-muted">{t.call.aiNotes}</p>
-            <button
-              class="mt-2 rounded-lg bg-brand px-3 py-2 text-sm font-medium
+            <p class="text-xs text-text-muted">
+              Your voice is not being transcribed.
+            </p>
+          {/if}
+        {:else}
+          <p class="text-text-muted">{t.call.aiNotes}</p>
+          <button
+            class="mt-2 rounded-lg bg-brand px-3 py-2 text-sm font-medium
                 text-[#04211d]"
-              onclick={tryStartNotes}>Start AI notes</button
-            >
-          {/if}
-          {#if session.sharedNotes}
-            <div class="mt-4 border-t border-border pt-3">
-              <p class="text-sm">
-                {session.sharedNotes.fromName} shared meeting notes.
-              </p>
-              <details class="mt-2 text-xs">
-                <summary class="cursor-pointer text-text-muted">
-                  Preview
-                </summary>
-                <pre
-                  class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap
-                    rounded-lg bg-surface-2 p-2">{session.sharedNotes.md}</pre>
-              </details>
-              <button
-                class="mt-2 rounded-lg border border-border px-3 py-2 text-sm
-                  hover:bg-surface-2"
-                onclick={() => downloadNotes(session.sharedNotes!.md)}
-                >Download notes (.md)</button
-              >
-            </div>
-          {/if}
+            onclick={tryStartNotes}>Start AI notes</button
+          >
         {/if}
-      </div>
-    </aside>
+        {#if session.sharedNotes}
+          <div class="mt-4 border-t border-border pt-3">
+            <p class="text-sm">
+              {session.sharedNotes.fromName} shared meeting notes.
+            </p>
+            <details class="mt-2 text-xs">
+              <summary class="cursor-pointer text-text-muted">
+                Preview
+              </summary>
+              <pre
+                class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap
+                    rounded-lg bg-surface-2 p-2">{session.sharedNotes.md}</pre>
+            </details>
+            <button
+              class="mt-2 rounded-lg border border-border px-3 py-2 text-sm
+                  hover:bg-surface-2"
+              onclick={() => downloadNotes(session.sharedNotes!.md)}
+              >Download notes (.md)</button
+            >
+          </div>
+        {/if}
+      {/if}
+    </div>
+  {/snippet}
+
+  {#if ui.panel}
+    {#if isMobile.current}
+      <FloatPanel
+        title={panelTitle[ui.panel]}
+        onclose={() => (ui.panel = null)}
+      >
+        {@render panelBody()}
+      </FloatPanel>
+    {:else}
+      <aside
+        class="absolute inset-y-0 left-auto right-0 z-30 flex w-[360px]
+          flex-col border-l border-border bg-surface p-4"
+      >
+        {@render panelBody()}
+      </aside>
+    {/if}
   {/if}
 
   <!-- Control bar -->

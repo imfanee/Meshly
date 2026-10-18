@@ -289,3 +289,10 @@ Format:
 - Fixed a self-introduced race where the worker 'loading' message resolved the load promise early.
 - Verified: check clean, build clean (asr.worker is a lazy 545 KB chunk; main bundle unchanged), notes + qr e2e 5/5.
 - Commit: pending
+
+## 2026-10-18: Floating mobile panels + e2e dev-relay fix
+
+- Mobile UX: chat/people/notes panels were a full-screen overlay, hiding video and controls. New FloatPanel component: draggable by its grip bar (pointer capture, arrow-key move), corner resize handle, and an opacity slider; defaults to the top ~58% of the screen so controls and part of the stage stay visible. Desktop keeps the docked 360px column (same content via a shared snippet).
+- e2e infra fix: since f127982 gated devRelayUrl on import.meta.env.DEV, preview builds silently fell back to public relays, making e2e flaky. Added VITE_E2E=1 opt-in in playwright.config; production builds never set it, so the dev-relay URL still compiles out (verified: no localhost:8787 in production web/).
+- Verified: check clean, build clean, floatpanel + qr e2e 4/4.
+- Commit: pending
