@@ -762,6 +762,11 @@
                 {session.notesText}
               </div>
             {/if}
+            {#if session.notesModelLoading}
+              <p class="mt-3 text-sm text-text-muted" role="status">
+                {t.call.notesModelLoading}
+              </p>
+            {/if}
             {#if session.transcript.length}
               <div class="mt-3 space-y-1 text-xs">
                 {#each session.transcript.slice(-40) as line (line.ts + line.text)}

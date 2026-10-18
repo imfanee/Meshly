@@ -88,6 +88,8 @@ export const t = {
     copyLink: 'Copy link',
     shareQr: 'QR code',
     shareQrHint: 'Guests can scan this to join.',
+    notesModelLoading:
+      'Loading the on-device AI model. First use can take a few minutes.',
     recording: 'Recording',
     aiNotes: 'AI notes',
     mic: 'Microphone',

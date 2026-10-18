@@ -99,6 +99,8 @@ export const session = $state({
   /** Running bullet notes + final summary text. */
   notesText: '',
   notesBusy: false,
+  /** True while the on-device ASR model downloads/loads (first use). */
+  notesModelLoading: false,
   /** Notes Markdown shared by the note-taker (recipient side). */
   sharedNotes: null as { fromName: string; md: string } | null,
 });
@@ -174,6 +176,7 @@ export function resetSession(): void {
   session.transcript = [];
   session.notesText = '';
   session.notesBusy = false;
+  session.notesModelLoading = false;
   session.sharedNotes = null;
   notesAllowed.clear();
   if (notesTimer) clearInterval(notesTimer);
@@ -1014,6 +1017,8 @@ let lastNotesLen = 0;
 async function ensurePipeline(transcribe?: TranscribeFn): Promise<void> {
   if (pipeline) return;
   const { NotesPipeline } = await import('../core/ai/pipeline');
+  const { setLocalModelStatus } = await import('../core/ai/transcribe');
+  setLocalModelStatus((v) => (session.notesModelLoading = v));
   const fn: TranscribeFn =
     transcribe ??
     ((blob: Blob) =>

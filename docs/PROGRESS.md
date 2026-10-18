@@ -271,3 +271,12 @@ Format:
 - Deps: uqr (~5 KB) for QR generation, jsqr (lazy-loaded) for decode.
 - Verified: check clean, build clean, tests/e2e/qr.spec.ts 3/3 (staged progress or fast-path navigation, scan dialog options, QR dialog in call).
 - Commit: pending
+
+## 2026-10-18: Local ASR load fixes (transcription appeared dead)
+
+- Root cause candidates fixed: a stale BYOK model name in settings.aiTranscribeModel (for example whisper-large-v3-turbo) was being sent to HuggingFace as the local model; localTranscribe now only honours overrides that look like HF repo ids (contain a slash).
+- A failed model load was cached in pipeLoading forever, bricking transcription for the session; it now resets so the next segment retries.
+- Transcribe errors were swallowed silently; each retry now console.warn's the real error for diagnosis.
+- First-use model download (~200 MB) showed zero feedback; the notes panel now shows "Loading the on-device AI model. First use can take a few minutes." while it runs (notesModelLoading state via setLocalModelStatus).
+- Verified: check clean, build clean, notes e2e 2/2.
+- Commit: pending

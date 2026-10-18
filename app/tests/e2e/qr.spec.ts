@@ -24,9 +24,7 @@ test.describe('start progress and QR share/join', () => {
 
   test('join card offers QR scan options', async ({ page }) => {
     await page.goto('/');
-    await page
-      .getByRole('button', { name: 'Join with a QR code' })
-      .click();
+    await page.getByRole('button', { name: 'Join with a QR code' }).click();
     await expect(
       page.getByRole('button', { name: 'Scan with camera' }),
     ).toBeVisible();

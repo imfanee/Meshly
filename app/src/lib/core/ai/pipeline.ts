@@ -149,7 +149,8 @@ export class NotesPipeline {
             this.onLines?.();
           }
         })
-        .catch(async () => {
+        .catch(async (e) => {
+          console.warn('transcribe segment failed', e);
           item.tries += 1;
           if (item.tries < MAX_TRIES) {
             await new Promise((r) => setTimeout(r, 1_000 * 2 ** item.tries));

@@ -14,18 +14,36 @@ export interface TranscribeResult {
 
 let localPipe: ((a: unknown) => Promise<unknown>) | null = null;
 let pipeLoading: Promise<unknown> | null = null;
+/** Notified while the local model downloads/loads (first use, ~200 MB). */
+export let onLocalModelStatus: ((loading: boolean) => void) | null = null;
+export function setLocalModelStatus(cb: (loading: boolean) => void): void {
+  onLocalModelStatus = cb;
+}
 
 async function localTranscribe(blob: Blob): Promise<string> {
   if (!localPipe) {
+    // Only honour a user override that looks like a HF repo id; a stale
+    // BYOK model name (for example whisper-large-v3-turbo) must not be
+    // used here.
+    const override = settings.aiTranscribeModel;
+    const model = override?.includes('/')
+      ? override
+      : presetOf('local').transcribeModel;
+    onLocalModelStatus?.(true);
     pipeLoading ??= (async () => {
       const { pipeline } = await import('@huggingface/transformers');
-      return pipeline(
-        'automatic-speech-recognition',
-        settings.aiTranscribeModel || presetOf('local').transcribeModel,
-        { dtype: 'q4' },
-      );
+      return pipeline('automatic-speech-recognition', model, { dtype: 'q4' });
     })();
-    localPipe = (await pipeLoading) as typeof localPipe;
+    try {
+      localPipe = (await pipeLoading) as typeof localPipe;
+    } catch (e) {
+      // A failed load must not poison later attempts.
+      pipeLoading = null;
+      console.warn('local ASR model failed to load', e);
+      throw e;
+    } finally {
+      onLocalModelStatus?.(false);
+    }
   }
   // Moonshine wants 16 kHz PCM; decode the segment and resample.
   const audio = await decodeTo16k(blob);
