@@ -41,6 +41,8 @@ interface MeshlyTest {
   fileBlobOf(id: string): Blob | undefined;
   startComposite(): Promise<{ frameCount: number; getStream(): MediaStream }>;
   stopComposite(): void;
+  startRecording(o?: { preferOpfs?: boolean }): Promise<void>;
+  stopRecording(): Promise<void>;
   localMedia: {
     listDevices(): Promise<MediaDeviceInfo[]>;
     switchAudioDevice(id: string): Promise<void>;

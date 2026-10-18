@@ -80,6 +80,8 @@ export const session = $state({
   muteAsk: false,
   /** In-flight file transfers (doc 06 s.2). */
   files: [] as TransferState[],
+  /** Host is recording this meeting locally. */
+  recording: false,
 });
 
 // Non-reactive internals (CryptoKeys must not be Svelte-proxied).
@@ -145,6 +147,8 @@ export function resetSession(): void {
   session.files = [];
   fileBlobs.clear();
   _files = null;
+  _recorder = null;
+  session.recording = false;
   stopComposite();
   slotGranted = false;
   pendingSlot = false;
@@ -822,6 +826,56 @@ export async function startComposite() {
 export function stopComposite(): void {
   _compositor?.dispose();
   _compositor = null;
+}
+
+// ---- Local recording (doc 06 s.5, host only) --------------------------------
+
+let _recorder: import('../core/recording/recorder').Recorder | null = null;
+
+export async function startRecording(opts?: {
+  preferOpfs?: boolean;
+}): Promise<void> {
+  if (session.role !== 'host' || session.recording) return;
+  const c = await startComposite();
+  const { Recorder } = await import('../core/recording/recorder');
+  _recorder = new Recorder();
+  await _recorder.start(c.getStream(), opts);
+  if (_recorder.state === 'recording') {
+    session.recording = true;
+    session.announce = 'Recording started';
+  }
+}
+
+export async function stopRecording(): Promise<void> {
+  if (!_recorder) return;
+  const blob = await _recorder.stop();
+  _recorder = null;
+  session.recording = false;
+  session.announce = 'Recording stopped';
+  stopComposite();
+  if (blob) {
+    // Buffered path (non-FS browsers): download the finished file.
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `meshly-${Date.now()}.webm`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  }
+}
+
+/** On app load: offer to recover a recording cut short by a crash. */
+export async function checkRecordingRecovery(): Promise<void> {
+  const { Recorder } = await import('../core/recording/recorder');
+  const orphan = await Recorder.findOrphaned();
+  if (!orphan) return;
+  const url = URL.createObjectURL(orphan);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `meshly-recovered-${Date.now()}.webm`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  toast('Recovered an interrupted recording');
 }
 
 /** Test hook: force an ICE restart toward a peer (T2.5 reconnect e2e). */

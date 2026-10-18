@@ -15,6 +15,7 @@
 
   import { initInstall } from './lib/platform/install.svelte';
   import MeshLogo from './lib/ui/MeshLogo.svelte';
+  import { checkRecordingRecovery } from './lib/stores/session.svelte';
   import { onMount } from 'svelte';
 
   initTheme();
@@ -23,6 +24,8 @@
   // Installed-window title bar (window-controls-overlay), doc 05 section 6.
   let wco = $state(false);
   onMount(() => {
+    // Offer to recover a recording cut short by a crash (doc 06 s.5).
+    void checkRecordingRecovery();
     const mq = window.matchMedia('(display-mode: window-controls-overlay)');
     wco = mq.matches;
     const on = () => (wco = mq.matches);

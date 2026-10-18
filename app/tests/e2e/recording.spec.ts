@@ -40,3 +40,17 @@ test('compositor ticks ~25 fps and emits video+audio', async ({ browser }) => {
   expect(tracks).toContain('audio');
   await Promise.allSettled([h.ctx.close()]);
 });
+
+test('recorder downloads a WebM via the OPFS path', async ({ browser }) => {
+  test.setTimeout(90_000);
+  const h = await host(browser, 'Host R');
+  const dl = h.page.waitForEvent('download', { timeout: 30_000 });
+  await h.page.evaluate(async () => {
+    await window.__meshlyTest!.startRecording({ preferOpfs: true });
+    await new Promise((r) => setTimeout(r, 4000));
+    await window.__meshlyTest!.stopRecording();
+  });
+  const download = await dl;
+  expect(download.suggestedFilename()).toMatch(/\.webm$/);
+  await Promise.allSettled([h.ctx.close()]);
+});

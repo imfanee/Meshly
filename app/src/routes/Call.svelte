@@ -22,6 +22,8 @@
     shareScreen,
     stopShare,
     reportWatching,
+    startRecording,
+    stopRecording,
     sendFile,
     acceptFile,
     declineFile,
@@ -236,6 +238,15 @@
       {session.peerCount}
       {session.peerCount === 1 ? 'person' : 'people'}
     </span>
+    {#if session.recording}
+      <span
+        class="flex items-center gap-1.5 rounded-full bg-danger/15 px-2.5
+          py-1 text-xs font-medium text-danger"
+        role="status"
+      >
+        <span class="h-2 w-2 animate-pulse rounded-full bg-danger"></span>REC
+      </span>
+    {/if}
     <span class="flex-1"></span>
     <Tooltip text={t.call.copyLink}>
       <button
@@ -887,6 +898,20 @@
       <Users size={20} />
       {t.call.people}
     </button>
+    {#if isHost}
+      <button
+        class="flex items-center gap-3 rounded-lg px-3 py-3 text-left
+          hover:bg-surface-2"
+        onclick={() => {
+          if (session.recording) void stopRecording();
+          else void startRecording();
+          moreOpen = false;
+        }}
+      >
+        <Circle size={20} class={session.recording ? 'text-danger' : ''} />
+        {session.recording ? 'Stop recording' : 'Record this meeting'}
+      </button>
+    {/if}
     <button
       class="flex items-center gap-3 rounded-lg px-3 py-3 text-left
         hover:bg-surface-2"

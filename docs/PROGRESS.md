@@ -196,3 +196,10 @@ Format:
 - Verified: `npm run check` clean; recording e2e passes (tick rate ~25 fps, output stream has video+audio).
 - Open: the 5-minute hidden-tab run is a live check (headless cannot force `document.hidden`); composite preview UI arrives with the recorder in T3.2.
 - Commit: pending
+
+## 2026-10-18: T3.2 Recorder and sinks
+
+- Changed: `core/recording/recorder.ts` (MediaRecorder 5 s timeslice, mime pick vp9>vp8): File System Access `showSaveFilePicker` streams chunks straight to disk on Chromium (flat memory); OPFS `meshly-recording.part` buffer elsewhere, `fix-webm-duration` applied at stop, then download; OPFS `.part` orphans are offered as a recovered download on next app load. Session `startRecording/stopRecording` (host-only; composite starts, flags `session.recording`, announce). UI: host gets "Record this meeting" in the More sheet and a red REC pill in the call header; `App` runs `checkRecordingRecovery` on mount.
+- Verified: `npm run check` clean; recording e2e 2/2 (fps + OPFS download of a .webm).
+- Open: 60-min flat-memory and Safari/Firefox playback are live checks; FS-streamed files keep MediaRecorder's live-muxed duration (readers treat it as a stream) — same fix could be applied server-side if ever needed.
+- Commit: pending

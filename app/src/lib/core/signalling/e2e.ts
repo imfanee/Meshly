@@ -20,4 +20,6 @@ export {
   fileBlobOf,
   startComposite,
   stopComposite,
+  startRecording,
+  stopRecording,
 } from '../../stores/session.svelte';
