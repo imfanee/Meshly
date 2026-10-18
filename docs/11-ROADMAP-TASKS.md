@@ -52,10 +52,10 @@ Estimated effort for one agent with reviews: Phase 0 to 1 about 3 to 4 weeks of 
 
 ## Phase 5: own TURN relay (gated, needs Proxmox access)
 
-- [ ] **T5.1 Discovery** (doc 09 stage A). *Accept:* discovery saved in `.secrets/`, summary and proposed `host.env` approved by Faisal.
-- [ ] **T5.2 Host network and NAT** (stages B and C). *Accept:* fresh SSH works, rollback disarmed, `meshly-turn-nat.service` active.
-- [ ] **T5.3 Container and coturn** (stage D). *Accept:* coturn active with a valid certificate; renewal dry run OK.
-- [ ] **T5.4 Verification** (stage E). *Accept:* relay candidates over UDP 3478 and TLS 443; container cannot reach the host.
+- [x] **T5.1 Discovery** (doc 09 stage A). *Accept:* discovery saved in `.secrets/`, summary and proposed `host.env` approved by Faisal.
+- [x] **T5.2 Host network and NAT** (stages B and C). *Accept:* fresh SSH works, rollback disarmed, `meshly-turn-nat.service` active.
+- [x] **T5.3 Container and coturn** (stage D). *Accept:* coturn active with a valid certificate; renewal dry run OK.
+- [x] **T5.4 Verification** (stage E). *Accept:* relay candidates over UDP 3478 and TLS 443; container cannot reach the host.
 - [ ] **T5.5 Wire into Meshly** (stage F). *Accept:* relay-only call works between two devices; normal calls still connect directly.
 
 ## Phase 6: hardening and showcase

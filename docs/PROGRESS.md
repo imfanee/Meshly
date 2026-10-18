@@ -238,3 +238,11 @@ Format:
 - Verified: `npm run check` clean; notes e2e 2/2 (consent set + shared Markdown reaching the recipient, `# Meshly notes` with participant names).
 - Open: summary section quality with real models is a live check.
 - Commit: pending
+
+## 2026-10-18: T5.1-T5.4 TURN infrastructure (Option A, bridged)
+
+- Decision (Faisal): Option A, container directly on vmbr0 with its own public IP; the doc's NAT/private-bridge design was superseded (the IP is an OVH failover-IP pattern, same as the other guests).
+- Changed: CT 101 `meshly-turn` on prox1 (PVE 9.2.21), unprivileged Debian 13, 512 MB, bridged on vmbr0 as 51.38.218.46/32 (MAC 02:00:00:e1:7e:d3, gw 51.38.43.254), onboot. coturn 4.6.1 + certbot 4.0.0 + unattended-upgrades + vnstat; certbot HTTP-01 issued a LE cert for turn.meshly.softautonomi.com; cert copied to /etc/coturn/certs by the deploy hook. turnserver.conf adds `alt-tls-listening-port=443` (did not bind in 4.6.1) so a socat `meshly-tls443.service` forwards 443 to 51.38.218.46:5349; `denied-peer-ip=51.38.43.33` plus a persistent nftables `meshly-isolate.service` drops CT output to the host. turn.env shredded inside the container.
+- Verified: STUN binding over UDP 3478 externally; TCP 3478 reachable; TLS handshake on 5349 and 443 with the LE cert; full TURN allocation via turnutils_uclient over UDP with REST credentials (0% loss); CT-to-host BLOCKED while internet OK; renewal dry run OK.
+- Open: T5.5 wires turn.php and the app ICE config; the TURN_SECRET lives in .secrets/turn.env and must also go into .secrets/meshly-config.php on cPanel.
+- Commit: pending
