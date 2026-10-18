@@ -10,6 +10,8 @@ import type { RoomState, RosterEntry } from '../core/room/state';
 import type { PendingKnock } from '../core/room/membership';
 import type { Envelope } from '../core/signalling/envelope';
 import type { TransferState } from '../core/files/fileTransfer';
+import type { ChatMsg as AiChatMsg } from '../core/ai/openaiCompat';
+import type { NotesPipeline, TranscribeFn } from '../core/ai/pipeline';
 import { activeSpeaker } from '../core/media/activeSpeaker';
 import { Membership } from '../core/room/membership';
 import { SignallingHub, makeTransports } from '../core/signalling';
@@ -92,6 +94,11 @@ export const session = $state({
   } | null,
   /** My consent decision for the current asker. */
   notesConsent: null as boolean | null,
+  /** Attributed transcript lines (note-taker only, doc 06 s.6). */
+  transcript: [] as { speaker: string; ts: number; text: string }[],
+  /** Running bullet notes + final summary text. */
+  notesText: '',
+  notesBusy: false,
 });
 
 // Non-reactive internals (CryptoKeys must not be Svelte-proxied).
@@ -162,7 +169,15 @@ export function resetSession(): void {
   session.noteTaker = '';
   session.notesAsk = null;
   session.notesConsent = null;
+  session.transcript = [];
+  session.notesText = '';
+  session.notesBusy = false;
   notesAllowed.clear();
+  if (notesTimer) clearInterval(notesTimer);
+  notesTimer = null;
+  pipeline?.dispose();
+  pipeline = null;
+  lastNotesLen = 0;
   stopComposite();
   slotGranted = false;
   pendingSlot = false;
@@ -332,8 +347,13 @@ function handleCtl(peerId: string, msg: CtlMessage): void {
   ) {
     // I am the note-taker: record the answer.
     const allow = (msg.b as { allow?: boolean } | undefined)?.allow === true;
-    if (allow) notesAllowed.add(peerId);
-    else notesAllowed.delete(peerId);
+    if (allow) {
+      notesAllowed.add(peerId);
+      void ensurePipeline().then(() => addConsentedTrack(peerId));
+    } else {
+      notesAllowed.delete(peerId);
+      pipeline?.removeTrack(peerId);
+    }
     session.announce = `${nameOf(peerId)} ${allow ? 'allowed' : 'declined'} AI notes`;
   } else if (msg.t === 'notes-off') {
     session.noteTaker = '';
@@ -975,10 +995,42 @@ export function revokeNotesConsent(): void {
   });
 }
 
+// ---- Transcription pipeline (doc 06 s.6) -----------------------------------
+
+let pipeline: NotesPipeline | null = null;
+let notesTimer: ReturnType<typeof setInterval> | null = null;
+let lastNotesLen = 0;
+
+async function ensurePipeline(transcribe?: TranscribeFn): Promise<void> {
+  if (pipeline) return;
+  const { NotesPipeline } = await import('../core/ai/pipeline');
+  const fn: TranscribeFn =
+    transcribe ??
+    ((blob: Blob) =>
+      import('../core/ai/transcribe').then((m) => m.transcribeBlob(blob)));
+  pipeline = new NotesPipeline(fn);
+  pipeline.onLines = () => {
+    session.transcript = [...pipeline!.lines];
+  };
+  pipeline.onError = () => toast('An AI segment failed after 3 retries');
+  // My own mic is included by default.
+  const snap = localMedia.snapshot();
+  if (snap.stream) pipeline.addTrack('me', 'You', snap.stream);
+  // Live notes every 5 min while notes run.
+  notesTimer = setInterval(() => void updateNotes(), 5 * 60_000);
+}
+
+/** Include a peer's audio once they consent. */
+function addConsentedTrack(peerId: string): void {
+  const stream = peerStreamOf(peerId);
+  if (pipeline && stream) pipeline.addTrack(peerId, nameOf(peerId), stream);
+}
+
 /** Start AI notes: tell every peer, show the pill (doc 06 s.6 step 2). */
-export function startNotes(): void {
+export function startNotes(transcribe?: TranscribeFn): void {
   if (!peerManager) return;
   session.noteTaker = session.peerId ?? '';
+  void ensurePipeline(transcribe);
   peerManager.sendCtlAll({
     t: 'notes-req',
     id: crypto.randomUUID(),
@@ -997,12 +1049,128 @@ export function stopNotes(): void {
     ts: Date.now(),
     b: {},
   });
+  if (notesTimer) clearInterval(notesTimer);
+  notesTimer = null;
+  pipeline?.dispose();
+  pipeline = null;
+  lastNotesLen = 0;
   session.announce = 'AI notes stopped';
 }
 
 /** Note-taker side: peers who have consented (for the transcription gate). */
 export function notesConsented(peerId: string): boolean {
   return notesAllowed.has(peerId);
+}
+
+/** Test hook: how many audio taps the pipeline holds. */
+export function debugTaps(): number {
+  return pipeline
+    ? ((pipeline as unknown as { taps?: Map<string, unknown> }).taps?.size ??
+        -1)
+    : -2;
+}
+
+// ---- Summaries (doc 06 s.6) -------------------------------------------------
+
+let localSummaryPipe: ((m: AiChatMsg[]) => Promise<unknown>) | null = null;
+
+async function summarise(messages: AiChatMsg[]): Promise<string> {
+  if (settings.aiProvider !== 'local') {
+    const { chat } = await import('../core/ai/openaiCompat');
+    return chat(settings.aiBaseUrl, settings.aiKey, settings.aiModel, messages);
+  }
+  // Local summary via transformers.js text generation.
+  if (!localSummaryPipe) {
+    const { pipeline } = await import('@huggingface/transformers');
+    const preset = (await import('../core/ai/providers')).presetOf('local');
+    localSummaryPipe = (await pipeline(
+      'text-generation',
+      settings.aiModel || preset.summaryModel,
+      { dtype: 'q4' },
+    )) as unknown as typeof localSummaryPipe;
+  }
+  const prompt = messages
+    .map(
+      (m) => `${m.role === 'system' ? 'Instructions' : 'Input'}: ${m.content}`,
+    )
+    .join('\n\n');
+  const out = (await localSummaryPipe!(prompt as unknown as AiChatMsg[])) as
+    { generated_text?: string } | { generated_text?: string }[];
+  const text = Array.isArray(out)
+    ? out[0]?.generated_text
+    : out?.generated_text;
+  return typeof text === 'string' ? text : '';
+}
+
+/** Rolling notes: summarise the new transcript onto the existing notes. */
+export async function updateNotes(): Promise<void> {
+  if (!pipeline || session.notesBusy) return;
+  const transcript = pipeline.transcript();
+  if (transcript.length <= lastNotesLen) return;
+  session.notesBusy = true;
+  try {
+    const { NOTES_SYSTEM, liveNotesUser } = await import('../core/ai/prompts');
+    const update = await summarise([
+      { role: 'system', content: NOTES_SYSTEM },
+      {
+        role: 'user',
+        content: liveNotesUser(
+          transcript.slice(lastNotesLen),
+          session.notesText,
+        ),
+      },
+    ]);
+    if (update.trim()) {
+      session.notesText = update.trim();
+      lastNotesLen = transcript.length;
+    }
+  } catch (e) {
+    toast(`Notes update failed: ${String(e).slice(0, 80)}`);
+  } finally {
+    session.notesBusy = false;
+  }
+}
+
+/** Final Markdown summary (called on End AI notes or meeting end). */
+export async function finalNotes(): Promise<string> {
+  if (!pipeline) return '';
+  session.notesBusy = true;
+  try {
+    const { FINAL_SYSTEM, finalSummaryUser } =
+      await import('../core/ai/prompts');
+    const out = await summarise([
+      { role: 'system', content: FINAL_SYSTEM },
+      { role: 'user', content: finalSummaryUser(pipeline.transcript()) },
+    ]);
+    if (out.trim()) session.notesText = out.trim();
+    return session.notesText;
+  } catch (e) {
+    toast(`Final summary failed: ${String(e).slice(0, 80)}`);
+    return session.notesText;
+  } finally {
+    session.notesBusy = false;
+  }
+}
+
+/** Export the notes + transcript as a Markdown download. */
+export function downloadNotes(): void {
+  const names = session.peers.map((p) => p.name);
+  const md = [
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- one-off label, not state
+    `# Meshly notes - ${new Date().toLocaleDateString('en-GB')}`,
+    `Participants: ${[settings.displayName || 'You', ...names].join(', ')}`,
+    '',
+    session.notesText || '(no summary yet)',
+    '',
+    '## Transcript',
+    pipeline?.transcript() ?? '(empty)',
+  ].join('\n');
+  const url = URL.createObjectURL(new Blob([md], { type: 'text/markdown' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `meshly-notes-${Date.now()}.md`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 /** On app load: offer to recover a recording cut short by a crash. */

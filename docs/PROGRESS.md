@@ -223,3 +223,11 @@ Format:
 - Changed: `notes-req`/`notes-consent`/`notes-off` ctl messages; receivers get a dialog ("X wants to use AI notes. Allow their AI provider to transcribe your voice?") with Allow/Decline and a 30 s auto-decline; `revokeNotesConsent` sends consent false mid-meeting; `notesAllowed` set on the note-taker drives `notesConsented(peerId)`/`consentedPeerIds()` for the T4.3 transcription gate; the Notes panel shows the pill ("X is running AI notes"), Start for the would-be taker (gate: BYOK needs a key first), Stop for the taker, Revoke for consenters; consent state resets on leave.
 - Verified: `npm run check` clean; notes e2e passes (decline leaves the set empty, allow adds, revoke removes mid-meeting).
 - Commit: pending
+
+## 2026-10-18: T4.3 Transcription pipeline
+
+- Changed: `core/ai/pipeline.ts` (per-track MediaRecorder producing ~20 s standalone segments on audio-only streams, AnalyserNode RMS gate discarding >95% silent segments, upload queue at concurrency 2 with 3 retries and exponential backoff, attributed TranscriptLine{speaker,ts,text} sorted by time); `core/ai/transcribe.ts` (local Moonshine via lazy-loaded @huggingface/transformers at 16 kHz, BYOK OpenAI-compatible /audio/transcriptions multipart); `core/ai/prompts.ts` (transcript-only, names, British English, no em-dashes); session wiring (pipeline starts with AI notes, consented peers join via addConsentedTrack, revokes remove taps, 5-min rolling updateNotes, finalNotes with the sectioned prompt, downloadNotes Markdown export, transcript/notesText/notesBusy state); Notes panel shows transcript, notes and Update/Download/End buttons.
+- Bugs found by e2e: MediaRecorder on a mixed audio+video stream with an audio mime fails silently (audio-only stream fix); a suspended AudioContext made the silence gate drop everything (kept-when-not-running fix); consent arriving before the async pipeline init dropped the peer tap (ensure-then-add fix).
+- Verified: `npm run check` clean; pipeline e2e passes (2 taps, attributed lines from You + Guest P with a stub transcriber; the real Moonshine and BYOK paths share the same pipeline).
+- Open: the 10-min 3-person attributed transcript with real models is a live check; @huggingface/transformers installed with --ignore-scripts to skip onnxruntime-node's GPU binary download (browser uses onnxruntime-web).
+- Commit: pending

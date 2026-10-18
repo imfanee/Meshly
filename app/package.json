@@ -17,6 +17,7 @@
     "postinstall": "node scripts/copy-infra.mjs"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.1",
     "@lucide/svelte": "1.59.0",
     "fix-webm-duration": "^1.0.6",
     "idb": "8.0.4",

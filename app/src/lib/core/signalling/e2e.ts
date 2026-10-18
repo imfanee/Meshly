@@ -27,4 +27,8 @@ export {
   revokeNotesConsent,
   answerNotesConsent,
   consentedPeerIds,
+  updateNotes,
+  finalNotes,
+  downloadNotes,
+  debugTaps,
 } from '../../stores/session.svelte';

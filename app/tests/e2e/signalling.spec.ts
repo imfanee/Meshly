@@ -27,6 +27,7 @@ interface MeshlyTest {
     lobbyState: string;
     roster: { name: string; peerId: string }[];
     files: { id: string; state: string }[];
+    transcript: { speaker: string; ts: number; text: string }[];
   };
   debugPeers(): unknown[];
   debugInjectCtl(peerId: string, msg: unknown): void;
@@ -43,11 +44,12 @@ interface MeshlyTest {
   stopComposite(): void;
   startRecording(o?: { preferOpfs?: boolean }): Promise<void>;
   stopRecording(): Promise<void>;
-  startNotes(): void;
+  startNotes(t?: (b: Blob) => Promise<string>): void;
   stopNotes(): void;
   revokeNotesConsent(): void;
   answerNotesConsent(allow: boolean): void;
   consentedPeerIds(): string[];
+  debugTaps(): number;
   localMedia: {
     listDevices(): Promise<MediaDeviceInfo[]>;
     switchAudioDevice(id: string): Promise<void>;

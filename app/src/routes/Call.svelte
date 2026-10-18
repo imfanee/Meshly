@@ -33,6 +33,9 @@
     revokeNotesConsent,
     answerNotesConsent,
     consentedPeerIds,
+    updateNotes,
+    finalNotes,
+    downloadNotes,
     sendFile,
     acceptFile,
     declineFile,
@@ -736,6 +739,47 @@
                 hover:bg-surface-2"
               onclick={stopNotes}>Stop AI notes</button
             >
+            {#if session.notesText}
+              <div
+                class="mt-3 whitespace-pre-wrap rounded-lg bg-surface-2 p-3
+                  text-sm"
+              >
+                {session.notesText}
+              </div>
+            {/if}
+            {#if session.transcript.length}
+              <div class="mt-3 space-y-1 text-xs">
+                {#each session.transcript.slice(-40) as line (line.ts + line.text)}
+                  <p>
+                    <span class="font-medium">{line.speaker}</span>
+                    <span class="text-text-muted">
+                      {new Date(line.ts).toLocaleTimeString('en-GB')}</span
+                    >
+                    {line.text}
+                  </p>
+                {/each}
+              </div>
+            {/if}
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button
+                class="rounded-lg border border-border px-3 py-2 text-sm
+                  hover:bg-surface-2 disabled:opacity-50"
+                disabled={session.notesBusy}
+                onclick={() => void updateNotes()}
+                >{session.notesBusy ? 'Working…' : 'Update notes'}</button
+              >
+              <button
+                class="rounded-lg border border-border px-3 py-2 text-sm
+                  hover:bg-surface-2"
+                onclick={downloadNotes}>Download notes (.md)</button
+              >
+              <button
+                class="rounded-lg border border-border px-3 py-2 text-sm
+                  text-danger hover:bg-surface-2"
+                onclick={() => void finalNotes().then(stopNotes)}
+                >End AI notes</button
+              >
+            </div>
           {:else if session.noteTaker}
             <p class="text-sm">
               {session.roster.find((r) => r.peerId === session.noteTaker)
