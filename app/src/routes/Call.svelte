@@ -9,6 +9,7 @@
   import IconButton from '../lib/ui/IconButton.svelte';
   import Button from '../lib/ui/Button.svelte';
   import Dialog from '../lib/ui/Dialog.svelte';
+  import QrCode from '../lib/ui/QrCode.svelte';
   import Sheet from '../lib/ui/Sheet.svelte';
   import Tabs from '../lib/ui/Tabs.svelte';
   import Tooltip from '../lib/ui/Tooltip.svelte';
@@ -66,6 +67,7 @@
     MoreHorizontal,
     PhoneOff,
     Link2,
+    QrCode as QrCodeIcon,
     Circle,
     Lock,
     LayoutGrid,
@@ -108,6 +110,7 @@
   }
   let leaveMenu = $state(false);
   let copied = $state(false);
+  let qrOpen = $state(false);
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
   /** Grid on desktop, speaker on mobile (doc 05). */
   let layout = $state<'grid' | 'speaker'>(
@@ -299,6 +302,17 @@
       >
         <Link2 size={16} />
         {copied ? t.prejoin.copied : t.call.copyLink}
+      </button>
+    </Tooltip>
+    <Tooltip text={t.call.shareQr}>
+      <button
+        class="inline-flex h-9 items-center rounded-full bg-surface-2 px-3
+          hover:bg-border focus-visible:outline-2
+          focus-visible:outline-brand"
+        aria-label={t.call.shareQr}
+        onclick={() => (qrOpen = true)}
+      >
+        <QrCodeIcon size={16} />
       </button>
     </Tooltip>
   </header>
@@ -1098,6 +1112,17 @@
     <button
       class="flex items-center gap-3 rounded-lg px-3 py-3 text-left
         hover:bg-surface-2"
+      onclick={() => {
+        moreOpen = false;
+        qrOpen = true;
+      }}
+    >
+      <QrCodeIcon size={20} />
+      {t.call.shareQr}
+    </button>
+    <button
+      class="flex items-center gap-3 rounded-lg px-3 py-3 text-left
+        hover:bg-surface-2"
       aria-pressed={settings.relayOnly}
       onclick={() => (settings.relayOnly = !settings.relayOnly)}
     >
@@ -1147,6 +1172,22 @@
     {/if}
   </div>
 </Sheet>
+
+<!-- Meeting link as QR (doc 06). -->
+{#if session.link}
+  <Dialog bind:open={qrOpen} title={t.call.shareQr}>
+    <div class="flex flex-col items-center gap-3">
+      <QrCode text={session.link} />
+      <p class="text-sm text-text-muted">{t.call.shareQrHint}</p>
+      <p class="break-all text-center text-xs text-text-muted">
+        {session.link}
+      </p>
+      <Button variant="secondary" onclick={copyLink}>
+        {copied ? t.prejoin.copied : t.call.copyLink}
+      </Button>
+    </div>
+  </Dialog>
+{/if}
 
 <!-- AI notes consent ask (doc 06 s.6): 30 s, decline is the default. -->
 {#if session.notesAsk}

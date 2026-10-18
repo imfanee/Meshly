@@ -22,21 +22,39 @@
   import { install, requestInstall } from '../lib/platform/install.svelte';
   import InstallSheet from '../lib/ui/InstallSheet.svelte';
   import SettingsDialog from '../lib/ui/SettingsDialog.svelte';
+  import QrScanDialog from '../lib/ui/QrScanDialog.svelte';
+  import { QrCode, Check, LoaderCircle } from '@lucide/svelte';
 
   let settingsOpen = $state(false);
 
   let joinLink = $state('');
   let name = $state(settings.displayName);
+  let scanOpen = $state(false);
+  let startStep = $state(-1);
 
   async function startMeeting() {
-    persistName(name);
-    const room = await createRoom(config.appUrl);
-    await saveHostKey(room.link.roomId, room.host);
-    setHostIdentity(room.host);
-    enterRoom(room.link, room.url, 'host');
-    navigate(
-      `/r/${room.link.roomId}#${room.link.roomSecret}.${room.link.hostThumb}`,
-    );
+    startStep = 0;
+    try {
+      persistName(name);
+      const room = await createRoom(config.appUrl);
+      startStep = 1;
+      await saveHostKey(room.link.roomId, room.host);
+      setHostIdentity(room.host);
+      startStep = 2;
+      enterRoom(room.link, room.url, 'host');
+      navigate(
+        `/r/${room.link.roomId}#${room.link.roomSecret}.${room.link.hostThumb}`,
+      );
+    } catch (e) {
+      console.error('create meeting failed', e);
+      startStep = -1;
+      toast(t.home.startFailed);
+    }
+  }
+
+  function onQrFound(link: string) {
+    joinLink = link;
+    join();
   }
 
   function join() {
@@ -110,11 +128,44 @@
       <Button
         class="mt-4 w-full"
         size="lg"
-        disabled={name.trim().length === 0}
+        disabled={name.trim().length === 0 || startStep >= 0}
         onclick={startMeeting}
       >
         {t.home.startMeeting}
       </Button>
+
+      {#if startStep >= 0}
+        <div
+          class="mt-4 rounded-lg border border-border bg-surface-2 p-4"
+          role="status"
+          aria-live="polite"
+        >
+          <ol class="space-y-2 text-sm">
+            {#each t.home.startSteps as label, i (label)}
+              <li
+                class="flex items-center gap-2"
+                class:text-text-muted={i > startStep}
+              >
+                {#if i < startStep}
+                  <Check size={16} class="text-brand" aria-hidden="true" />
+                {:else if i === startStep}
+                  <LoaderCircle
+                    size={16}
+                    class="animate-spin text-brand"
+                    aria-hidden="true"
+                  />
+                {:else}
+                  <span
+                    class="h-4 w-4 rounded-full border border-border"
+                    aria-hidden="true"
+                  ></span>
+                {/if}
+                {label}
+              </li>
+            {/each}
+          </ol>
+        </div>
+      {/if}
 
       <div class="my-4 flex items-center gap-3 text-sm text-text-muted">
         <span class="h-px flex-1 bg-border"></span>
@@ -142,6 +193,16 @@
           {t.home.join}
         </Button>
       </form>
+      <button
+        class="mt-3 inline-flex items-center gap-2 text-sm text-text-muted
+          hover:text-text focus-visible:outline-2
+          focus-visible:outline-brand"
+        onclick={() => (scanOpen = true)}
+      >
+        <QrCode size={16} aria-hidden="true" />
+        {t.home.qrJoin}
+      </button>
+      <QrScanDialog bind:open={scanOpen} onFound={onQrFound} />
     </section>
   </main>
 

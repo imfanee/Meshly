@@ -262,3 +262,12 @@ Format:
 - Bug 4: no way to close dialogs. Fix: X close button on Dialog.svelte (all dialogs).
 - Verified: cam-off propagates camOn false and the remote audio element stays attached (e2e); check clean. Headless fake-device re-acquire does not produce frames so the local-preview frames assertion stays a live check.
 - Commit: pending
+
+## 2026-10-18: Start progress UX and QR share/join
+
+- Start a meeting now shows a staged progress card (Adding security, Creating room, Connecting) with a spinner per active step, aria-live for screen readers; the button is disabled while it runs and resets with a toast on failure.
+- Share: QR icon button in the call header plus a QR code item in the More sheet open a dialog rendering the meeting link as an SVG QR (uqr), with copy link alongside.
+- Join: "Join with a QR code" under the join form opens QrScanDialog offering camera scanning (getUserMedia environment + jsQR frame loop, lazy-loaded) and QR image upload; decoded links are validated through parseLink before joining.
+- Deps: uqr (~5 KB) for QR generation, jsqr (lazy-loaded) for decode.
+- Verified: check clean, build clean, tests/e2e/qr.spec.ts 3/3 (staged progress or fast-path navigation, scan dialog options, QR dialog in call).
+- Commit: pending

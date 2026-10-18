@@ -21,9 +21,11 @@
     "@lucide/svelte": "1.59.0",
     "fix-webm-duration": "^1.0.6",
     "idb": "8.0.4",
+    "jsqr": "^1.4.0",
     "mqtt": "5.16.1",
     "nostr-tools": "2.25.2",
-    "svelte": "5.57.2"
+    "svelte": "5.57.2",
+    "uqr": "^0.1.3"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

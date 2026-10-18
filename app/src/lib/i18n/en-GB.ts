@@ -19,6 +19,9 @@ export const t = {
     joinLinkPlaceholder: 'Paste a meeting link',
     join: 'Join',
     joinInvalid: 'That does not look like a Meshly link.',
+    qrJoin: 'Join with a QR code',
+    startSteps: ['Adding security', 'Creating room', 'Connecting'],
+    startFailed: 'Could not create the meeting. Please try again.',
     features: {
       direct: {
         title: 'Direct and encrypted',
@@ -83,6 +86,8 @@ export const t = {
 
   call: {
     copyLink: 'Copy link',
+    shareQr: 'QR code',
+    shareQrHint: 'Guests can scan this to join.',
     recording: 'Recording',
     aiNotes: 'AI notes',
     mic: 'Microphone',
