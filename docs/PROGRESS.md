@@ -246,3 +246,10 @@ Format:
 - Verified: STUN binding over UDP 3478 externally; TCP 3478 reachable; TLS handshake on 5349 and 443 with the LE cert; full TURN allocation via turnutils_uclient over UDP with REST credentials (0% loss); CT-to-host BLOCKED while internet OK; renewal dry run OK.
 - Open: T5.5 wires turn.php and the app ICE config; the TURN_SECRET lives in .secrets/turn.env and must also go into .secrets/meshly-config.php on cPanel.
 - Commit: pending
+
+## 2026-10-18: T5.5 TURN wired into Meshly (live)
+
+- Changed: `infra/cpanel/api/turn.php` gained a jailed-FTP fallback so meshly-config.php can live inside the docroot (.htaccess FilesMatch already denies it to HTTP); `scripts/upload-turn-config.mjs` uploads config + turn.php over the same pinned FTPS as deploy; `.env.production` sets `VITE_OWN_STUN_URL=stun:turn.meshly.softautonomi.com:3478` (our own STUN first). Deployed meshly-config.php + turn.php + rebuilt web/.
+- Verified: `/meshly-config.php` returns 403 over HTTP; `/api/turn.php` returns real credentials `turn:turn.meshly.softautonomi.com:3478` udp/tcp + `turns:...:443` tcp with a valid HMAC; site 200 after deploy.
+- Open: the acceptance "relay-only call works between two devices" needs a live check on real devices (headless e2e cannot reach public relays from here) — enable "Hide my IP address" in two browsers, run a call, confirm "relayed" on the tile dots.
+- Commit: pending

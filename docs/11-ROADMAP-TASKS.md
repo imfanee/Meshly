@@ -48,7 +48,7 @@ Estimated effort for one agent with reviews: Phase 0 to 1 about 3 to 4 weeks of 
 - [x] **T4.2 Consent flow** (doc 06 section 6). *Accept:* declining or timing out excludes that participant's track; revoke works mid-meeting.
 - [x] **T4.3 Transcription pipeline:** per-track segmenter, silence skip, queue with retry, transcript view. *Accept:* 10-minute 3-person test produces an attributed transcript.
 - [x] **T4.4 Notes and summary:** rolling notes, final summary, Markdown export, share with participants. *Accept:* summary has all sections; export downloads.
-- [ ] **T4.5 (optional) Local Whisper** via transformers.js on WebGPU. *Accept:* works offline on a WebGPU laptop; lazy-loaded.
+- [x] **T4.5 (optional) Local Whisper** — superseded by the decision-C Moonshine local ASR via transformers.js on WebGPU. *Accept:* works offline on a WebGPU laptop; lazy-loaded.
 
 ## Phase 5: own TURN relay (gated, needs Proxmox access)
 
@@ -56,7 +56,7 @@ Estimated effort for one agent with reviews: Phase 0 to 1 about 3 to 4 weeks of 
 - [x] **T5.2 Host network and NAT** (stages B and C). *Accept:* fresh SSH works, rollback disarmed, `meshly-turn-nat.service` active.
 - [x] **T5.3 Container and coturn** (stage D). *Accept:* coturn active with a valid certificate; renewal dry run OK.
 - [x] **T5.4 Verification** (stage E). *Accept:* relay candidates over UDP 3478 and TLS 443; container cannot reach the host.
-- [ ] **T5.5 Wire into Meshly** (stage F). *Accept:* relay-only call works between two devices; normal calls still connect directly.
+- [x] **T5.5 Wire into Meshly** (stage F). *Accept:* relay-only call works between two devices; normal calls still connect directly.
 
 ## Phase 6: hardening and showcase
 

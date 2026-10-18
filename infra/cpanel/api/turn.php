@@ -50,6 +50,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET') {
 $home = home_dir();
 $configFile = $home . '/meshly-config.php';
 if (!is_file($configFile)) {
+    // Jailed-FTP fallback: the file inside the document root itself. It is
+    // denied to HTTP by the .htaccess FilesMatch rule and read only by PHP.
+    $configFile = dirname(__DIR__) . '/meshly-config.php';
+}
+if (!is_file($configFile)) {
     fail(503, 'turn_not_configured');
 }
 
