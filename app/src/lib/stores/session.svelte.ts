@@ -82,6 +82,16 @@ export const session = $state({
   files: [] as TransferState[],
   /** Host is recording this meeting locally. */
   recording: false,
+  /** peerId of the participant running AI notes (doc 06 s.6). */
+  noteTaker: '',
+  /** Consent ask I must answer (who requested, deadline). */
+  notesAsk: null as {
+    fromId: string;
+    fromName: string;
+    deadline: number;
+  } | null,
+  /** My consent decision for the current asker. */
+  notesConsent: null as boolean | null,
 });
 
 // Non-reactive internals (CryptoKeys must not be Svelte-proxied).
@@ -149,6 +159,10 @@ export function resetSession(): void {
   _files = null;
   _recorder = null;
   session.recording = false;
+  session.noteTaker = '';
+  session.notesAsk = null;
+  session.notesConsent = null;
+  notesAllowed.clear();
   stopComposite();
   slotGranted = false;
   pendingSlot = false;
@@ -294,6 +308,37 @@ function handleCtl(peerId: string, msg: CtlMessage): void {
   } else if (msg.t === 'slot-deny' && pendingSlot && peerId === hostPeerId()) {
     pendingSlot = false;
     toast('No free camera slots right now');
+  } else if (msg.t === 'notes-req') {
+    // Someone started AI notes; I have 30 s to allow or decline.
+    if (session.notesAsk?.fromId === peerId) return;
+    session.noteTaker = peerId;
+    session.notesConsent = null;
+    session.notesAsk = {
+      fromId: peerId,
+      fromName: nameOf(peerId),
+      deadline: Date.now() + 30_000,
+    };
+    setTimeout(() => {
+      if (
+        session.notesAsk?.fromId === peerId &&
+        session.notesConsent === null
+      ) {
+        answerNotesConsent(false); // timeout counts as decline
+      }
+    }, 30_000);
+  } else if (
+    msg.t === 'notes-consent' &&
+    session.noteTaker === session.peerId
+  ) {
+    // I am the note-taker: record the answer.
+    const allow = (msg.b as { allow?: boolean } | undefined)?.allow === true;
+    if (allow) notesAllowed.add(peerId);
+    else notesAllowed.delete(peerId);
+    session.announce = `${nameOf(peerId)} ${allow ? 'allowed' : 'declined'} AI notes`;
+  } else if (msg.t === 'notes-off') {
+    session.noteTaker = '';
+    session.notesAsk = null;
+    notesAllowed.clear();
   } else if (msg.t.startsWith('file-')) {
     void initFiles().then((ft) =>
       ft?.onCtl(peerId, msg as { t: string; b?: Record<string, unknown> }),
@@ -892,6 +937,72 @@ export function playRecordChime(): void {
   } catch {
     /* no audio output or autoplay blocked: banner still shows */
   }
+}
+
+// ---- AI notes consent (doc 06 s.6) -----------------------------------------
+
+/** Peers who allowed my AI notes to transcribe them (I am the note-taker). */
+// eslint-disable-next-line svelte/prefer-svelte-reactivity -- consent set, not UI state
+const notesAllowed = new Set<string>();
+
+/** Track IDs I may transcribe: consented peers plus my own mic. */
+export function consentedPeerIds(): string[] {
+  return [...notesAllowed];
+}
+
+export function answerNotesConsent(allow: boolean): void {
+  const ask = session.notesAsk;
+  if (!ask) return;
+  session.notesConsent = allow;
+  session.notesAsk = null;
+  peerManager?.sendCtlTo(ask.fromId, {
+    t: 'notes-consent',
+    id: crypto.randomUUID(),
+    ts: Date.now(),
+    b: { allow },
+  });
+}
+
+/** Revoke consent mid-meeting (AI notes pill). */
+export function revokeNotesConsent(): void {
+  if (!session.noteTaker) return;
+  session.notesConsent = false;
+  peerManager?.sendCtlTo(session.noteTaker, {
+    t: 'notes-consent',
+    id: crypto.randomUUID(),
+    ts: Date.now(),
+    b: { allow: false },
+  });
+}
+
+/** Start AI notes: tell every peer, show the pill (doc 06 s.6 step 2). */
+export function startNotes(): void {
+  if (!peerManager) return;
+  session.noteTaker = session.peerId ?? '';
+  peerManager.sendCtlAll({
+    t: 'notes-req',
+    id: crypto.randomUUID(),
+    ts: Date.now(),
+    b: { name: settings.displayName || 'A participant' },
+  });
+  session.announce = 'AI notes started';
+}
+
+export function stopNotes(): void {
+  session.noteTaker = '';
+  notesAllowed.clear();
+  peerManager?.sendCtlAll({
+    t: 'notes-off',
+    id: crypto.randomUUID(),
+    ts: Date.now(),
+    b: {},
+  });
+  session.announce = 'AI notes stopped';
+}
+
+/** Note-taker side: peers who have consented (for the transcription gate). */
+export function notesConsented(peerId: string): boolean {
+  return notesAllowed.has(peerId);
 }
 
 /** On app load: offer to recover a recording cut short by a crash. */

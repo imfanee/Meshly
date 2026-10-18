@@ -22,4 +22,9 @@ export {
   stopComposite,
   startRecording,
   stopRecording,
+  startNotes,
+  stopNotes,
+  revokeNotesConsent,
+  answerNotesConsent,
+  consentedPeerIds,
 } from '../../stores/session.svelte';

@@ -43,6 +43,11 @@ interface MeshlyTest {
   stopComposite(): void;
   startRecording(o?: { preferOpfs?: boolean }): Promise<void>;
   stopRecording(): Promise<void>;
+  startNotes(): void;
+  stopNotes(): void;
+  revokeNotesConsent(): void;
+  answerNotesConsent(allow: boolean): void;
+  consentedPeerIds(): string[];
   localMedia: {
     listDevices(): Promise<MediaDeviceInfo[]>;
     switchAudioDevice(id: string): Promise<void>;

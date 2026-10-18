@@ -217,3 +217,9 @@ Format:
 - Verified: `npm run check` clean.
 - Open: real-key test call awaits Faisal entering his Groq/Gemini key locally; Anthropic adapter deferred (no transcription endpoint, Gemini covers the same BYOK need).
 - Commit: pending
+
+## 2026-10-18: T4.2 AI notes consent flow
+
+- Changed: `notes-req`/`notes-consent`/`notes-off` ctl messages; receivers get a dialog ("X wants to use AI notes. Allow their AI provider to transcribe your voice?") with Allow/Decline and a 30 s auto-decline; `revokeNotesConsent` sends consent false mid-meeting; `notesAllowed` set on the note-taker drives `notesConsented(peerId)`/`consentedPeerIds()` for the T4.3 transcription gate; the Notes panel shows the pill ("X is running AI notes"), Start for the would-be taker (gate: BYOK needs a key first), Stop for the taker, Revoke for consenters; consent state resets on leave.
+- Verified: `npm run check` clean; notes e2e passes (decline leaves the set empty, allow adds, revoke removes mid-meeting).
+- Commit: pending

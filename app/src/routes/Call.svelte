@@ -28,6 +28,11 @@
     stopRecording,
     recordingActive,
     playRecordChime,
+    startNotes,
+    stopNotes,
+    revokeNotesConsent,
+    answerNotesConsent,
+    consentedPeerIds,
     sendFile,
     acceptFile,
     declineFile,
@@ -86,6 +91,16 @@
     if (session.recording) void stopRecording();
     else recConsent = true;
     moreOpen = false;
+  }
+
+  // AI notes (doc 06 s.6): consent flow.
+  const notesConsentedCount = $derived(consentedPeerIds().length);
+  function tryStartNotes() {
+    if (settings.aiProvider !== 'local' && !settings.aiKey) {
+      toast('Add your AI key in Settings first');
+      return;
+    }
+    startNotes();
   }
   let leaveMenu = $state(false);
   let copied = $state(false);
@@ -710,7 +725,44 @@
           {/if}
         {/if}
         {#if ui.panel === 'notes'}
-          <p class="text-text-muted">{t.call.aiNotes}</p>
+          {#if session.noteTaker === session.peerId}
+            <p class="text-sm">
+              You are running AI notes.
+              {notesConsentedCount}
+              {notesConsentedCount === 1 ? 'person has' : 'people have'} consented.
+            </p>
+            <button
+              class="mt-2 rounded-lg border border-border px-3 py-2 text-sm
+                hover:bg-surface-2"
+              onclick={stopNotes}>Stop AI notes</button
+            >
+          {:else if session.noteTaker}
+            <p class="text-sm">
+              {session.roster.find((r) => r.peerId === session.noteTaker)
+                ?.name ?? 'A participant'}
+              is running AI notes{session.notesConsent === true
+                ? ' on your voice'
+                : ''}.
+            </p>
+            {#if session.notesConsent === true}
+              <button
+                class="mt-2 rounded-lg border border-border px-3 py-2 text-sm
+                  hover:bg-surface-2"
+                onclick={revokeNotesConsent}>Revoke my consent</button
+              >
+            {:else}
+              <p class="text-xs text-text-muted">
+                Your voice is not being transcribed.
+              </p>
+            {/if}
+          {:else}
+            <p class="text-text-muted">{t.call.aiNotes}</p>
+            <button
+              class="mt-2 rounded-lg bg-brand px-3 py-2 text-sm font-medium
+                text-[#04211d]"
+              onclick={tryStartNotes}>Start AI notes</button
+            >
+          {/if}
         {/if}
       </div>
     </aside>
@@ -1024,6 +1076,26 @@
     {/if}
   </div>
 </Sheet>
+
+<!-- AI notes consent ask (doc 06 s.6): 30 s, decline is the default. -->
+{#if session.notesAsk}
+  <Dialog
+    open
+    title="{session.notesAsk.fromName} wants to use AI notes"
+    onclose={() => answerNotesConsent(false)}
+  >
+    <p class="mb-4 text-sm text-text-muted">
+      Allow their AI provider to transcribe your voice? You can change this any
+      time. No answer in 30 seconds counts as decline.
+    </p>
+    <div class="flex justify-end gap-2">
+      <Button variant="secondary" onclick={() => answerNotesConsent(false)}
+        >Decline</Button
+      >
+      <Button onclick={() => answerNotesConsent(true)}>Allow</Button>
+    </div>
+  </Dialog>
+{/if}
 
 <!-- Host consent before recording (doc 06 s.5). -->
 <Dialog bind:open={recConsent} title="Record this meeting?">
