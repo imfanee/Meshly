@@ -189,3 +189,10 @@ Format:
 - Changed: `lib/ui/SettingsDialog.svelte` (Dialog-based, three sections): Appearance (display name + theme, persisted to localStorage), Devices (mic/camera pickers via localMedia switch, devicechange listener), Advanced (relay-only, Nostr/MQTT transport toggles, connection-details toggle). Gear button on the Home header opens it.
 - Verified: `npm run check` clean; settings e2e passes (name + theme persist across a reload and re-appear in the dialog).
 - Commit: pending
+
+## 2026-10-18: T3.1 Compositor and mixer
+
+- Changed: `core/recording/compositor.ts` (1280x720 canvas at 25 fps, doc-05 grid layout up to 6 tiles, avatar + initials for audio-only, name labels, speaking ring, screen-share layout with share at ~75% width, hidden <video> elements as frame sources) driven by `ticker.worker.ts` (worker timers keep firing while the tab hides); Web Audio mixer connects every participant's audio track to a `MediaStreamAudioDestinationNode`; `getStream()` = captureStream(25) video + mixed audio; session `startComposite/stopComposite` (lazy-loaded, sources re-read each tick from peers + local + screen). Renamed the Settings dialog field to "Display name" after it collided with Home's "Your name" in e2e locators.
+- Verified: `npm run check` clean; recording e2e passes (tick rate ~25 fps, output stream has video+audio).
+- Open: the 5-minute hidden-tab run is a live check (headless cannot force `document.hidden`); composite preview UI arrives with the recorder in T3.2.
+- Commit: pending

@@ -18,4 +18,6 @@ export {
   debugRestartIce,
   sendFile,
   fileBlobOf,
+  startComposite,
+  stopComposite,
 } from '../../stores/session.svelte';

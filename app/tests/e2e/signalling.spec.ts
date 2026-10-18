@@ -39,6 +39,8 @@ interface MeshlyTest {
   debugRestartIce(peerId: string): void;
   sendFile(file: File): Promise<void>;
   fileBlobOf(id: string): Blob | undefined;
+  startComposite(): Promise<{ frameCount: number; getStream(): MediaStream }>;
+  stopComposite(): void;
   localMedia: {
     listDevices(): Promise<MediaDeviceInfo[]>;
     switchAudioDevice(id: string): Promise<void>;

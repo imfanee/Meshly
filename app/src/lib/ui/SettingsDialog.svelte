@@ -45,7 +45,7 @@
     <section class="space-y-2">
       <h3 class="font-medium">Appearance</h3>
       <label class="block">
-        <span class="text-text-muted">Your name</span>
+        <span class="text-text-muted">Display name</span>
         <input
           class="mt-1 w-full rounded-lg border border-border bg-surface-2
             px-3 py-2 focus-visible:outline-2 focus-visible:outline-brand"

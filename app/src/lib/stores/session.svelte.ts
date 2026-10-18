@@ -10,6 +10,7 @@ import type { RoomState, RosterEntry } from '../core/room/state';
 import type { PendingKnock } from '../core/room/membership';
 import type { Envelope } from '../core/signalling/envelope';
 import type { TransferState } from '../core/files/fileTransfer';
+import { activeSpeaker } from '../core/media/activeSpeaker';
 import { Membership } from '../core/room/membership';
 import { SignallingHub, makeTransports } from '../core/signalling';
 import { joinRoomKeys } from '../core/room/room';
@@ -144,6 +145,7 @@ export function resetSession(): void {
   session.files = [];
   fileBlobs.clear();
   _files = null;
+  stopComposite();
   slotGranted = false;
   pendingSlot = false;
   grantedSlots.clear();
@@ -772,6 +774,54 @@ export async function saveFile(t: TransferState): Promise<void> {
   a.download = FileTransfer.safeName(t.name);
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+// ---- Recording compositor (doc 06 s.5), lazy-loaded -----------------------
+
+let _compositor: import('../core/recording/compositor').Compositor | null =
+  null;
+
+/** Start the composite preview; returns the compositor (and its canvas). */
+export async function startComposite() {
+  if (_compositor) return _compositor;
+  const { Compositor } = await import('../core/recording/compositor');
+  _compositor = new Compositor(
+    () => [
+      {
+        peerId: session.peerId ?? 'me',
+        name: settings.displayName || 'You',
+        stream: localMedia.snapshot().stream,
+        video: localMedia.snapshot().video,
+        speaking: false,
+      },
+      ...session.peers.map((p) => ({
+        peerId: p.peerId,
+        name: p.name,
+        stream: peerStreamOf(p.peerId),
+        video: p.camOn
+          ? (peerStreamOf(p.peerId)?.getVideoTracks()[0] ?? null)
+          : null,
+        speaking: p.peerId === activeSpeaker.active,
+      })),
+    ],
+    () => {
+      const sharer = session.peers.find((p) => p.screen);
+      if (sharer) {
+        const s = screenStreamOf(sharer.peerId);
+        return s ? { name: sharer.name, stream: s } : null;
+      }
+      if (localScreenStream()) {
+        return { name: 'You', stream: localScreenStream()! };
+      }
+      return null;
+    },
+  );
+  return _compositor;
+}
+
+export function stopComposite(): void {
+  _compositor?.dispose();
+  _compositor = null;
 }
 
 /** Test hook: force an ICE restart toward a peer (T2.5 reconnect e2e). */
