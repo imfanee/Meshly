@@ -123,16 +123,28 @@
     ? 'camera on'
     : 'camera off'}, {micOn ? 'unmuted' : 'muted'}"
 >
-  {#if camOn && stream}
+  {#if stream && !self}
+    <!-- Remote streams stay mounted for audio; camOff hides the pixels
+         rather than unmounting the element (audio would die with it). -->
     <video
       use:attachStream={stream}
       autoplay
       playsinline
-      muted={self}
+      class="h-full w-full object-cover {camOn ? '' : 'hidden'}"
+      data-peer={peerId}
+    ></video>
+  {/if}
+  {#if self && camOn && stream}
+    <video
+      use:attachStream={stream}
+      autoplay
+      playsinline
+      muted
       class="h-full w-full object-cover"
       data-peer={peerId}
     ></video>
-  {:else}
+  {/if}
+  {#if !(stream && !self && camOn) && !(self && camOn && stream)}
     <div class="flex h-full min-h-24 items-center justify-center">
       <span
         class="flex items-center justify-center rounded-full font-semibold

@@ -38,7 +38,7 @@ DirectoryIndex index.html
     Header always set Referrer-Policy "no-referrer"
     Header always set Cross-Origin-Opener-Policy "same-origin"
     Header always set Permissions-Policy "camera=(self), microphone=(self), display-capture=(self), screen-wake-lock=(self), fullscreen=(self), autoplay=(self), geolocation=(), payment=(), usb=()"
-    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; font-src 'self'; connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; font-src 'self'; connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
 
     # App entry points must always revalidate so updates are picked up
     <FilesMatch "^(index\.html|sw\.js|registerSW\.js|manifest\.webmanifest)$">

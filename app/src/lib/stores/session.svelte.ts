@@ -1258,8 +1258,10 @@ export const mediaActions = {
       toast('No free camera slots right now');
       return;
     }
-    settings.camOn = on;
     await localMedia.setCam(on);
+    // Flip the flag AFTER the track exists so reactive camOn props
+    // (settings.camOn && tracks.length) never latch a false mid-state.
+    settings.camOn = on;
     peerManager?.broadcastMediaState();
   },
   async flipCamera() {

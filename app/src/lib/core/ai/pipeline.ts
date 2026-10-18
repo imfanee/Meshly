@@ -23,6 +23,7 @@ interface TrackTap {
   speechMs: number;
   segStart: number;
   timer: ReturnType<typeof setInterval>;
+  rmsTimer?: ReturnType<typeof setInterval>;
 }
 
 interface QueueItem {
@@ -78,11 +79,12 @@ export class NotesPipeline {
     clearInterval(tap.timer);
 
     const rms = new Float32Array(analyser.fftSize);
+    // Standalone segments per doc 06: stop() flushes a complete file and
+    // onstop restarts the next one. Do NOT pass a timeslice to start().
     tap.recorder.ondataavailable = (e) => {
       const segMs = Date.now() - tap.segStart;
       const speechFrac = segMs > 0 ? tap.speechMs / segMs : 0;
       tap.speechMs = 0;
-      tap.segStart = Date.now();
       // Discard segments that were over 95% silent. If the AudioContext
       // could not resume (autoplay policy), the RMS gate is unreliable so
       // segments are kept rather than wrongly dropped.
@@ -90,25 +92,31 @@ export class NotesPipeline {
       if (e.data.size > 0 && (!gateLive || speechFrac > 0.05)) {
         this.enqueue({
           speaker: tap.name,
-          ts: tap.segStart - segMs,
+          ts: tap.segStart,
           blob: e.data,
           tries: 0,
         });
       }
-      tap.recorder.start(SEGMENT_MS); // next standalone segment
     };
-    tap.recorder.onstart = () => {
+    tap.recorder.onstop = () => {
       tap.segStart = Date.now();
-      tap.speechMs = 0;
+      if (this.taps.has(peerId) && tap.recorder.state === 'inactive') {
+        tap.recorder.start();
+      }
     };
-    tap.timer = setInterval(() => {
+    // RMS sampler for the silence gate (100 ms ticks).
+    tap.rmsTimer = setInterval(() => {
       analyser.getFloatTimeDomainData(rms);
       let sum = 0;
       for (let i = 0; i < rms.length; i += 4) sum += rms[i] * rms[i];
       if (Math.sqrt(sum / (rms.length / 4)) > RMS_THRESHOLD)
         tap.speechMs += 100;
     }, 100);
-    tap.recorder.start(SEGMENT_MS);
+    // Segment clock: stop() flushes a complete file every SEGMENT_MS.
+    tap.timer = setInterval(() => {
+      if (tap.recorder.state === 'recording') tap.recorder.stop();
+    }, SEGMENT_MS);
+    tap.recorder.start();
     this.taps.set(peerId, tap);
   }
 
@@ -117,6 +125,7 @@ export class NotesPipeline {
     if (!tap) return;
     this.taps.delete(peerId);
     clearInterval(tap.timer);
+    if (tap.rmsTimer) clearInterval(tap.rmsTimer);
     tap.recorder.stop();
     tap.src.disconnect();
     void tap.audioCtx.close();

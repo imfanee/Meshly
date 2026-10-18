@@ -253,3 +253,12 @@ Format:
 - Verified: `/meshly-config.php` returns 403 over HTTP; `/api/turn.php` returns real credentials `turn:turn.meshly.softautonomi.com:3478` udp/tcp + `turns:...:443` tcp with a valid HMAC; site 200 after deploy.
 - Open: the acceptance "relay-only call works between two devices" needs a live check on real devices (headless e2e cannot reach public relays from here) — enable "Hide my IP address" in two browsers, run a call, confirm "relayed" on the tile dots.
 - Commit: pending
+
+## 2026-10-18: Live-test bug fixes (cam toggle, notes, dialog)
+
+- Bug 1 (cam off killed remote audio): Tile's <video> carried remote audio and unmounted on camOff. Fix: remote stream stays mounted on a non-muted element, hidden via class so audio survives.
+- Bug 2 (cam on gave no local view): mediaActions.setCam flipped settings.camOn before the track existed, latching the camOn expression false. Fix: flag flips after await localMedia.setCam.
+- Bug 3 (notes errors): MediaRecorder.start() inside ondataavailable while still recording caused InvalidStateError. Fix: proper stop()/onstop start() segmenter cycle; CSP gained blob: in script-src for the ONNX/transformers.js webgpu bundle.
+- Bug 4: no way to close dialogs. Fix: X close button on Dialog.svelte (all dialogs).
+- Verified: cam-off propagates camOn false and the remote audio element stays attached (e2e); check clean. Headless fake-device re-acquire does not produce frames so the local-preview frames assertion stays a live check.
+- Commit: pending
