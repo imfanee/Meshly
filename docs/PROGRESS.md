@@ -280,3 +280,12 @@ Format:
 - First-use model download (~200 MB) showed zero feedback; the notes panel now shows "Loading the on-device AI model. First use can take a few minutes." while it runs (notesModelLoading state via setLocalModelStatus).
 - Verified: check clean, build clean, notes e2e 2/2.
 - Commit: pending
+
+## 2026-10-18: UI freeze fix (main-thread ASR + QR decode loop)
+
+- Symptom: Chrome "Wait or Exit" prompts during a call while media stayed up (WebRTC runs off the main thread).
+- Cause 1: local Moonshine ASR inference ran on the main thread, blocking the UI for seconds per 20 s segment. Fix: asr.worker.ts runs transformers.js in a dedicated Web Worker (load/transcribe messages, transferable PCM). Bonus: the onnx wasm now ships from our origin instead of a CDN.
+- Cause 2: the QR camera loop launched an unbounded jsQR decode every animation frame. Fix: decode throttled to ~3/s and skipped while one is in flight.
+- Fixed a self-introduced race where the worker 'loading' message resolved the load promise early.
+- Verified: check clean, build clean (asr.worker is a lazy 545 KB chunk; main bundle unchanged), notes + qr e2e 5/5.
+- Commit: pending

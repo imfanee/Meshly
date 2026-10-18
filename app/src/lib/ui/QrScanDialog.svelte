@@ -46,18 +46,27 @@
     }
   }
 
+  let scanning = false;
+  let lastScan = 0;
+
   function tick() {
     raf = requestAnimationFrame(tick);
-    if (!videoEl || videoEl.readyState < 2) return;
+    if (!videoEl || videoEl.readyState < 2 || scanning) return;
+    const now = Date.now();
+    if (now - lastScan < 300) return;
+    lastScan = now;
     const c = document.createElement('canvas');
     c.width = videoEl.videoWidth;
     c.height = videoEl.videoHeight;
     const ctx = c.getContext('2d');
     if (!ctx) return;
     ctx.drawImage(videoEl, 0, 0);
-    void scanData(ctx.getImageData(0, 0, c.width, c.height)).then((link) => {
-      if (link) done(link);
-    });
+    scanning = true;
+    void scanData(ctx.getImageData(0, 0, c.width, c.height))
+      .then((link) => {
+        if (link) done(link);
+      })
+      .finally(() => (scanning = false));
   }
 
   async function fromFile(e: Event) {

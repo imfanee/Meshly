@@ -1,8 +1,9 @@
 /**
- * Transcription adapters (doc 06 s.6). 'local' runs Moonshine in the
- * browser via transformers.js (dynamic import, ~40-150 MB model download
- * on first use, cached by the browser). BYOK providers POST the segment
- * to their OpenAI-compatible /audio/transcriptions endpoint.
+ * Transcription adapters (doc 06 s.6). 'local' runs Moonshine in a Web
+ * Worker via transformers.js (lazy, ~200 MB model download on first
+ * use, cached by the browser) so inference never blocks the call UI.
+ * BYOK providers POST the segment to their OpenAI-compatible
+ * /audio/transcriptions endpoint.
  */
 
 import { settings } from '../../stores/settings.svelte';
@@ -12,44 +13,74 @@ export interface TranscribeResult {
   text: string;
 }
 
-let localPipe: ((a: unknown) => Promise<unknown>) | null = null;
-let pipeLoading: Promise<unknown> | null = null;
-/** Notified while the local model downloads/loads (first use, ~200 MB). */
+/** Notified while the local model downloads/loads (first use). */
 export let onLocalModelStatus: ((loading: boolean) => void) | null = null;
 export function setLocalModelStatus(cb: (loading: boolean) => void): void {
   onLocalModelStatus = cb;
 }
 
-async function localTranscribe(blob: Blob): Promise<string> {
-  if (!localPipe) {
-    // Only honour a user override that looks like a HF repo id; a stale
-    // BYOK model name (for example whisper-large-v3-turbo) must not be
-    // used here.
-    const override = settings.aiTranscribeModel;
-    const model = override?.includes('/')
-      ? override
-      : presetOf('local').transcribeModel;
-    onLocalModelStatus?.(true);
-    pipeLoading ??= (async () => {
-      const { pipeline } = await import('@huggingface/transformers');
-      return pipeline('automatic-speech-recognition', model, { dtype: 'q4' });
-    })();
-    try {
-      localPipe = (await pipeLoading) as typeof localPipe;
-    } catch (e) {
-      // A failed load must not poison later attempts.
-      pipeLoading = null;
-      console.warn('local ASR model failed to load', e);
-      throw e;
-    } finally {
-      onLocalModelStatus?.(false);
+interface OutMsg {
+  id: number;
+  kind: 'loading' | 'loaded' | 'result' | 'error';
+  text?: string;
+  error?: string;
+}
+
+let worker: Worker | null = null;
+let seq = 0;
+const pending = new Map<
+  number,
+  { res: (v: string) => void; rej: (e: Error) => void }
+>();
+
+function ensureWorker(): Worker {
+  if (worker) return worker;
+  worker = new Worker(new URL('./asr.worker.ts', import.meta.url), {
+    type: 'module',
+  });
+  worker.onmessage = (e: MessageEvent) => {
+    const { id, kind, text, error } = e.data as OutMsg;
+    if (kind === 'loading') {
+      onLocalModelStatus?.(true);
+      return;
     }
-  }
-  // Moonshine wants 16 kHz PCM; decode the segment and resample.
+    if (kind === 'loaded' || kind === 'error') onLocalModelStatus?.(false);
+    const p = pending.get(id);
+    if (!p) return;
+    pending.delete(id);
+    if (kind === 'error') p.rej(new Error(error));
+    else p.res(text ?? '');
+  };
+  return worker;
+}
+
+function call(msg: object, transfer?: Transferable[]): Promise<string> {
+  const w = ensureWorker();
+  const id = ++seq;
+  return new Promise<string>((res, rej) => {
+    pending.set(id, { res, rej });
+    w.postMessage({ id, ...msg }, transfer ?? []);
+  });
+}
+
+let modelReady: Promise<string> | null = null;
+
+async function localTranscribe(blob: Blob): Promise<string> {
+  // Only honour a user override that looks like a HF repo id; a stale
+  // BYOK model name (for example whisper-large-v3-turbo) must not be
+  // used here.
+  const override = settings.aiTranscribeModel;
+  const model = override?.includes('/')
+    ? override
+    : presetOf('local').transcribeModel;
+  modelReady ??= call({ kind: 'load', model }).catch((e: Error) => {
+    modelReady = null;
+    console.warn('local ASR model failed to load', e);
+    throw e;
+  });
+  await modelReady;
   const audio = await decodeTo16k(blob);
-  const out = (await localPipe!(audio)) as
-    { text?: string } | { text?: string }[];
-  return Array.isArray(out) ? (out[0]?.text ?? '') : (out?.text ?? '');
+  return call({ kind: 'transcribe', audio }, [audio.buffer]);
 }
 
 async function decodeTo16k(blob: Blob): Promise<Float32Array> {
