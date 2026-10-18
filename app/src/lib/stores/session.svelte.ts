@@ -99,6 +99,8 @@ export const session = $state({
   /** Running bullet notes + final summary text. */
   notesText: '',
   notesBusy: false,
+  /** Notes Markdown shared by the note-taker (recipient side). */
+  sharedNotes: null as { fromName: string; md: string } | null,
 });
 
 // Non-reactive internals (CryptoKeys must not be Svelte-proxied).
@@ -172,6 +174,7 @@ export function resetSession(): void {
   session.transcript = [];
   session.notesText = '';
   session.notesBusy = false;
+  session.sharedNotes = null;
   notesAllowed.clear();
   if (notesTimer) clearInterval(notesTimer);
   notesTimer = null;
@@ -355,6 +358,13 @@ function handleCtl(peerId: string, msg: CtlMessage): void {
       pipeline?.removeTrack(peerId);
     }
     session.announce = `${nameOf(peerId)} ${allow ? 'allowed' : 'declined'} AI notes`;
+  } else if (msg.t === 'notes-share') {
+    // The note-taker shared the finished notes (doc 06 s.6).
+    const md = (msg.b as { md?: string } | undefined)?.md;
+    if (md) {
+      session.sharedNotes = { fromName: nameOf(peerId), md };
+      session.announce = `${nameOf(peerId)} shared meeting notes`;
+    }
   } else if (msg.t === 'notes-off') {
     session.noteTaker = '';
     session.notesAsk = null;
@@ -1152,10 +1162,10 @@ export async function finalNotes(): Promise<string> {
   }
 }
 
-/** Export the notes + transcript as a Markdown download. */
-export function downloadNotes(): void {
+/** Build the export Markdown (used by download and share). */
+export function notesMarkdown(): string {
   const names = session.peers.map((p) => p.name);
-  const md = [
+  return [
     // eslint-disable-next-line svelte/prefer-svelte-reactivity -- one-off label, not state
     `# Meshly notes - ${new Date().toLocaleDateString('en-GB')}`,
     `Participants: ${[settings.displayName || 'You', ...names].join(', ')}`,
@@ -1165,7 +1175,23 @@ export function downloadNotes(): void {
     '## Transcript',
     pipeline?.transcript() ?? '(empty)',
   ].join('\n');
-  const url = URL.createObjectURL(new Blob([md], { type: 'text/markdown' }));
+}
+
+/** Share the notes Markdown with every participant (doc 06 s.6). */
+export function shareNotes(): void {
+  peerManager?.sendCtlAll({
+    t: 'notes-share',
+    id: crypto.randomUUID(),
+    ts: Date.now(),
+    b: { md: notesMarkdown() },
+  });
+  session.announce = 'Notes shared with everyone';
+}
+
+/** Export the notes + transcript as a Markdown download. */
+export function downloadNotes(md = notesMarkdown()): void {
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = `meshly-notes-${Date.now()}.md`;

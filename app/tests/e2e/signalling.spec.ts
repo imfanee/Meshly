@@ -28,6 +28,7 @@ interface MeshlyTest {
     roster: { name: string; peerId: string }[];
     files: { id: string; state: string }[];
     transcript: { speaker: string; ts: number; text: string }[];
+    sharedNotes: { fromName: string; md: string } | null;
   };
   debugPeers(): unknown[];
   debugInjectCtl(peerId: string, msg: unknown): void;
@@ -50,6 +51,8 @@ interface MeshlyTest {
   answerNotesConsent(allow: boolean): void;
   consentedPeerIds(): string[];
   debugTaps(): number;
+  shareNotes(): void;
+  notesMarkdown(): string;
   localMedia: {
     listDevices(): Promise<MediaDeviceInfo[]>;
     switchAudioDevice(id: string): Promise<void>;

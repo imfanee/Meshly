@@ -231,3 +231,10 @@ Format:
 - Verified: `npm run check` clean; pipeline e2e passes (2 taps, attributed lines from You + Guest P with a stub transcriber; the real Moonshine and BYOK paths share the same pipeline).
 - Open: the 10-min 3-person attributed transcript with real models is a live check; @huggingface/transformers installed with --ignore-scripts to skip onnxruntime-node's GPU binary download (browser uses onnxruntime-web).
 - Commit: pending
+
+## 2026-10-18: T4.4 Notes, summary, share
+
+- Changed: `notesMarkdown()` builds the export (title, date, participants, summary, transcript); `shareNotes()` sends it over ctl `notes-share`; recipients keep `session.sharedNotes{fromName,md}` with a Preview + Download card in the Notes panel; note-taker gets "Share with everyone". Rolling notes and the sectioned final summary shipped in T4.3.
+- Verified: `npm run check` clean; notes e2e 2/2 (consent set + shared Markdown reaching the recipient, `# Meshly notes` with participant names).
+- Open: summary section quality with real models is a live check.
+- Commit: pending

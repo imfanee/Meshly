@@ -36,6 +36,7 @@
     updateNotes,
     finalNotes,
     downloadNotes,
+    shareNotes,
     sendFile,
     acceptFile,
     declineFile,
@@ -771,7 +772,12 @@
               <button
                 class="rounded-lg border border-border px-3 py-2 text-sm
                   hover:bg-surface-2"
-                onclick={downloadNotes}>Download notes (.md)</button
+                onclick={() => downloadNotes()}>Download notes (.md)</button
+              >
+              <button
+                class="rounded-lg border border-border px-3 py-2 text-sm
+                  hover:bg-surface-2"
+                onclick={shareNotes}>Share with everyone</button
               >
               <button
                 class="rounded-lg border border-border px-3 py-2 text-sm
@@ -806,6 +812,27 @@
                 text-[#04211d]"
               onclick={tryStartNotes}>Start AI notes</button
             >
+          {/if}
+          {#if session.sharedNotes}
+            <div class="mt-4 border-t border-border pt-3">
+              <p class="text-sm">
+                {session.sharedNotes.fromName} shared meeting notes.
+              </p>
+              <details class="mt-2 text-xs">
+                <summary class="cursor-pointer text-text-muted">
+                  Preview
+                </summary>
+                <pre
+                  class="mt-2 max-h-48 overflow-auto whitespace-pre-wrap
+                    rounded-lg bg-surface-2 p-2">{session.sharedNotes.md}</pre>
+              </details>
+              <button
+                class="mt-2 rounded-lg border border-border px-3 py-2 text-sm
+                  hover:bg-surface-2"
+                onclick={() => downloadNotes(session.sharedNotes!.md)}
+                >Download notes (.md)</button
+              >
+            </div>
           {/if}
         {/if}
       </div>

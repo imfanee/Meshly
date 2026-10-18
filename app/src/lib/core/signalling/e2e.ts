@@ -31,4 +31,6 @@ export {
   finalNotes,
   downloadNotes,
   debugTaps,
+  shareNotes,
+  notesMarkdown,
 } from '../../stores/session.svelte';
