@@ -39,8 +39,12 @@ test('guest sees the recording banner within a second', async ({ browser }) => {
     window.__meshlyTest!.startRecording({ preferOpfs: true }),
   );
   // The media broadcast carries the flag; banner must appear fast.
-  await expect(g.locator('[role=status]', { hasText: 'Recording' })).toBeVisible({ timeout: 1000 });
-  await expect(h.page.locator('[role=status]', { hasText: 'Recording' })).toBeVisible();
+  await expect(
+    g.locator('[role=status]', { hasText: 'Recording' }),
+  ).toBeVisible({ timeout: 1000 });
+  await expect(
+    h.page.locator('[role=status]', { hasText: 'Recording' }),
+  ).toBeVisible();
 
   await Promise.allSettled([h.ctx.close(), gctx.close()]);
 });

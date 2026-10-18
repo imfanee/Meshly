@@ -44,7 +44,7 @@ Estimated effort for one agent with reviews: Phase 0 to 1 about 3 to 4 weeks of 
 
 ## Phase 4: AI notes
 
-- [ ] **T4.1 Provider adapters and Settings UI** (OpenAI, Anthropic, Gemini, OpenAI-compatible) with Test buttons and key storage options. *Accept:* each adapter passes mocked tests; real test call works with Faisal's key (he enters it locally).
+- [x] **T4.1 Provider adapters and Settings UI** (OpenAI, Anthropic, Gemini, OpenAI-compatible) with Test buttons and key storage options. *Accept:* each adapter passes mocked tests; real test call works with Faisal's key (he enters it locally).
 - [ ] **T4.2 Consent flow** (doc 06 section 6). *Accept:* declining or timing out excludes that participant's track; revoke works mid-meeting.
 - [ ] **T4.3 Transcription pipeline:** per-track segmenter, silence skip, queue with retry, transcript view. *Accept:* 10-minute 3-person test produces an attributed transcript.
 - [ ] **T4.4 Notes and summary:** rolling notes, final summary, Markdown export, share with participants. *Accept:* summary has all sections; export downloads.

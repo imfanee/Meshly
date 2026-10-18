@@ -22,6 +22,8 @@ const write = (key: string, value: string): void => {
   }
 };
 
+export type AiProvider = 'local' | 'groq' | 'gemini' | 'openai-compat';
+
 export const settings = $state({
   theme: ((): Theme => {
     const v = read('meshly:theme');
@@ -34,6 +36,14 @@ export const settings = $state({
   showConnectionDetails: false,
   transportNostr: true,
   transportMqtt: true,
+  // ---- AI notes (doc 06 s.6): local models by default, BYOK upgrade -------
+  aiProvider: 'local' as AiProvider,
+  /** Session-scoped unless the user ticks "remember on this device". */
+  aiKey: '',
+  aiBaseUrl: '',
+  aiModel: '',
+  aiTranscribeModel: '',
+  rememberAiKey: false,
 });
 
 export function persistName(name: string): void {
@@ -44,4 +54,42 @@ export function persistName(name: string): void {
 export function persistTheme(theme: Theme): void {
   settings.theme = theme;
   write('meshly:theme', theme);
+}
+
+// ---- AI key persistence: only when the user ticks remember (doc 07) ------
+
+const AI_KEYS = [
+  'aiProvider',
+  'aiKey',
+  'aiBaseUrl',
+  'aiModel',
+  'aiTranscribeModel',
+] as const;
+
+try {
+  const saved = read('meshly:ai');
+  if (saved) {
+    const o = JSON.parse(saved) as Record<string, string>;
+    for (const k of AI_KEYS) {
+      if (typeof o[k] === 'string')
+        (settings as Record<string, unknown>)[k] = o[k];
+    }
+    settings.rememberAiKey = true;
+  }
+} catch {
+  /* corrupt entry: ignore */
+}
+
+export function persistAi(): void {
+  if (settings.rememberAiKey) {
+    const o: Record<string, string> = {};
+    for (const k of AI_KEYS) o[k] = settings[k] as string;
+    write('meshly:ai', JSON.stringify(o));
+  } else {
+    try {
+      globalThis.localStorage?.removeItem('meshly:ai');
+    } catch {
+      /* private mode */
+    }
+  }
 }

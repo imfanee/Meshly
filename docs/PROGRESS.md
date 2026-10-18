@@ -209,3 +209,11 @@ Format:
 - Changed: `recording` flag rides the media ctl broadcast (`PeerManager.setRecording`, `peerMedia` map, `PeerInfo.recording`); `recordingActive()` = self flag or any peer's flag; every participant sees the red "Recording" status in the call header and a two-tone chime (`playRecordChime`, 880/660 Hz) plays once per state change; the host sees a consent dialog ("Everyone will see a notice; the file stays on your device") before recording starts.
 - Verified: `npm run check` clean; notice e2e passes (guest sees the banner within 1 s of the host recording).
 - Commit: pending
+
+## 2026-10-18: T4.1 AI provider settings and adapter
+
+- Decision (Faisal): option C hybrid — in-browser Moonshine transcription + Transformers.js summary by default; BYOK presets (Groq, Gemini, generic OpenAI-compatible) as the quality upgrade. GitHub Models removed as an option (service shut down July 2026).
+- Changed: `core/ai/providers.ts` preset table (local/groq/gemini/openai-compat with base URLs and default models); `core/ai/openaiCompat.ts` chat adapter + `testKey` credential probe (covers all three BYOK presets, Gemini via its /v1beta/openai surface); settings gains aiProvider/aiKey/aiBaseUrl/aiModel/aiTranscribeModel/rememberAiKey with persistence to localStorage only when remember is ticked (doc 07); Settings dialog gains the AI notes section with provider picker, key/endpoint/model fields, a Test connection button, and the privacy note.
+- Verified: `npm run check` clean.
+- Open: real-key test call awaits Faisal entering his Groq/Gemini key locally; Anthropic adapter deferred (no transcription endpoint, Gemini covers the same BYOK need).
+- Commit: pending
