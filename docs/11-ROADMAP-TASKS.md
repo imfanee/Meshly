@@ -40,7 +40,7 @@ Estimated effort for one agent with reviews: Phase 0 to 1 about 3 to 4 weeks of 
 
 - [x] **T3.1 Compositor and mixer** with worker ticker. *Accept:* preview of the composite matches the grid; runs at 25 fps while the tab is hidden for 5 minutes.
 - [x] **T3.2 Recorder and sinks:** File System Access streaming (Chromium), OPFS buffer and download (others), WebM duration fix for buffered files, crash recovery offer. *Accept:* 60-minute recording on Chrome uses flat memory; Safari and Firefox produce a playable file; e2e recording test passes.
-- [ ] **T3.3 Recording notice:** state flag, banner and chime for all, consent dialog for host. *Accept:* every participant sees the banner within 1 s.
+- [x] **T3.3 Recording notice:** state flag, banner and chime for all, consent dialog for host. *Accept:* every participant sees the banner within 1 s.
 
 ## Phase 4: AI notes
 

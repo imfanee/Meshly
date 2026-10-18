@@ -7,6 +7,8 @@
    */
   import { t } from '../lib/i18n/en-GB';
   import IconButton from '../lib/ui/IconButton.svelte';
+  import Button from '../lib/ui/Button.svelte';
+  import Dialog from '../lib/ui/Dialog.svelte';
   import Sheet from '../lib/ui/Sheet.svelte';
   import Tabs from '../lib/ui/Tabs.svelte';
   import Tooltip from '../lib/ui/Tooltip.svelte';
@@ -24,6 +26,8 @@
     reportWatching,
     startRecording,
     stopRecording,
+    recordingActive,
+    playRecordChime,
     sendFile,
     acceptFile,
     declineFile,
@@ -65,6 +69,24 @@
   let topVisible = $state(true);
   let reactOpen = $state(false);
   let moreOpen = $state(false);
+
+  // Recording notice (doc 06 s.5): banner + chime for every participant,
+  // consent dialog for the host before recording starts.
+  const recActive = $derived(recordingActive());
+  let recConsent = $state(false);
+  let recSeen = $state(false);
+  $effect(() => {
+    if (recActive && !recSeen) {
+      recSeen = true;
+      playRecordChime();
+    }
+    if (!recActive) recSeen = false;
+  });
+  function toggleRecord() {
+    if (session.recording) void stopRecording();
+    else recConsent = true;
+    moreOpen = false;
+  }
   let leaveMenu = $state(false);
   let copied = $state(false);
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
@@ -238,13 +260,14 @@
       {session.peerCount}
       {session.peerCount === 1 ? 'person' : 'people'}
     </span>
-    {#if session.recording}
+    {#if recActive}
       <span
         class="flex items-center gap-1.5 rounded-full bg-danger/15 px-2.5
           py-1 text-xs font-medium text-danger"
         role="status"
       >
-        <span class="h-2 w-2 animate-pulse rounded-full bg-danger"></span>REC
+        <span class="h-2 w-2 animate-pulse rounded-full bg-danger"></span>
+        {t.call.recording}
       </span>
     {/if}
     <span class="flex-1"></span>
@@ -902,11 +925,7 @@
       <button
         class="flex items-center gap-3 rounded-lg px-3 py-3 text-left
           hover:bg-surface-2"
-        onclick={() => {
-          if (session.recording) void stopRecording();
-          else void startRecording();
-          moreOpen = false;
-        }}
+        onclick={toggleRecord}
       >
         <Circle size={20} class={session.recording ? 'text-danger' : ''} />
         {session.recording ? 'Stop recording' : 'Record this meeting'}
@@ -1005,6 +1024,25 @@
     {/if}
   </div>
 </Sheet>
+
+<!-- Host consent before recording (doc 06 s.5). -->
+<Dialog bind:open={recConsent} title="Record this meeting?">
+  <p class="mb-4 text-sm text-text-muted">
+    Everyone in the meeting will see a notice that you are recording. The file
+    stays on your device.
+  </p>
+  <div class="flex justify-end gap-2">
+    <Button variant="secondary" onclick={() => (recConsent = false)}>
+      Cancel
+    </Button>
+    <Button
+      onclick={() => {
+        recConsent = false;
+        void startRecording();
+      }}>Start recording</Button
+    >
+  </div>
+</Dialog>
 
 <!-- Announcement region for screen readers (joins, leaves, knocks). -->
 <div aria-live="polite" class="sr-only">{session.announce}</div>

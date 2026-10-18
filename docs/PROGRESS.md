@@ -203,3 +203,9 @@ Format:
 - Verified: `npm run check` clean; recording e2e 2/2 (fps + OPFS download of a .webm).
 - Open: 60-min flat-memory and Safari/Firefox playback are live checks; FS-streamed files keep MediaRecorder's live-muxed duration (readers treat it as a stream) — same fix could be applied server-side if ever needed.
 - Commit: pending
+
+## 2026-10-18: T3.3 Recording notice
+
+- Changed: `recording` flag rides the media ctl broadcast (`PeerManager.setRecording`, `peerMedia` map, `PeerInfo.recording`); `recordingActive()` = self flag or any peer's flag; every participant sees the red "Recording" status in the call header and a two-tone chime (`playRecordChime`, 880/660 Hz) plays once per state change; the host sees a consent dialog ("Everyone will see a notice; the file stays on your device") before recording starts.
+- Verified: `npm run check` clean; notice e2e passes (guest sees the banner within 1 s of the host recording).
+- Commit: pending

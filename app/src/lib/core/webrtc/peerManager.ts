@@ -29,6 +29,8 @@ export interface PeerInfo {
   hand: boolean;
   /** Currently sharing a screen, from the ctl media message. */
   screen: boolean;
+  /** Recording the meeting locally, from the ctl media message. */
+  recording: boolean;
   link: LinkKind;
   quality: LinkQuality;
   /** Round-trip time in ms, -1 unknown. */
@@ -44,7 +46,13 @@ export interface PeerInfo {
 /** What a peer last told us about its mic/camera via the ctl channel. */
 const peerMedia = new Map<
   string,
-  { micOn: boolean; camOn: boolean; hand: boolean; screen: boolean }
+  {
+    micOn: boolean;
+    camOn: boolean;
+    hand: boolean;
+    screen: boolean;
+    recording: boolean;
+  }
 >();
 /** Remote peer -> mid of its screen-share transceiver (from `tracks` ctl). */
 const screenMids = new Map<string, string>();
@@ -117,6 +125,7 @@ export class PeerManager {
       camOn: peerMedia.get(p.peerId)?.camOn ?? true,
       hand: peerMedia.get(p.peerId)?.hand ?? false,
       screen: peerMedia.get(p.peerId)?.screen ?? false,
+      recording: peerMedia.get(p.peerId)?.recording ?? false,
       link: peerLinks.get(p.peerId)?.link ?? 'unknown',
       quality: peerLinks.get(p.peerId)?.quality ?? 'unknown',
       rttMs: peerLinks.get(p.peerId)?.rttMs ?? -1,
@@ -162,6 +171,13 @@ export class PeerManager {
   }
 
   private hand = false;
+  private recordingFlag = false;
+
+  /** Doc 06 s.5 notice: broadcast my local-recording state. */
+  setRecording(v: boolean): void {
+    this.recordingFlag = v;
+    this.broadcastMediaState();
+  }
 
   private mediaMsg(): CtlMessage {
     const snap = this.media.snapshot();
@@ -174,6 +190,7 @@ export class PeerManager {
         video: !!snap.video,
         screen: !!this.screenTrack,
         hand: this.hand,
+        recording: this.recordingFlag,
       },
     };
   }
@@ -192,6 +209,7 @@ export class PeerManager {
         camOn: m.b.video === true,
         hand: m.b.hand === true,
         screen: m.b.screen === true,
+        recording: m.b.recording === true,
       });
       this.notify();
       return;

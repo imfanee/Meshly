@@ -842,6 +842,7 @@ export async function startRecording(opts?: {
   await _recorder.start(c.getStream(), opts);
   if (_recorder.state === 'recording') {
     session.recording = true;
+    peerManager?.setRecording(true);
     session.announce = 'Recording started';
   }
 }
@@ -851,6 +852,7 @@ export async function stopRecording(): Promise<void> {
   const blob = await _recorder.stop();
   _recorder = null;
   session.recording = false;
+  peerManager?.setRecording(false);
   session.announce = 'Recording stopped';
   stopComposite();
   if (blob) {
@@ -861,6 +863,34 @@ export async function stopRecording(): Promise<void> {
     a.download = `meshly-${Date.now()}.webm`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  }
+}
+
+/** True while anyone records (my flag or a peer's media broadcast). */
+export function recordingActive(): boolean {
+  return session.recording || session.peers.some((p) => p.recording);
+}
+
+/** Two-tone notice chime for everyone when recording starts (doc 06 s.5). */
+let chimeCtx: AudioContext | null = null;
+export function playRecordChime(): void {
+  try {
+    chimeCtx ??= new AudioContext();
+    void chimeCtx.resume();
+    const t0 = chimeCtx.currentTime;
+    for (const [i, freq] of [880, 660].entries()) {
+      const osc = chimeCtx.createOscillator();
+      const gain = chimeCtx.createGain();
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t0 + i * 0.18);
+      gain.gain.exponentialRampToValueAtTime(0.15, t0 + i * 0.18 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.18 + 0.16);
+      osc.connect(gain).connect(chimeCtx.destination);
+      osc.start(t0 + i * 0.18);
+      osc.stop(t0 + i * 0.18 + 0.18);
+    }
+  } catch {
+    /* no audio output or autoplay blocked: banner still shows */
   }
 }
 
