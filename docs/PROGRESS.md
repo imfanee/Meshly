@@ -183,3 +183,9 @@ Format:
 - Verified: `npm run check` clean; 50 MB file e2e passes with matching SHA-256.
 - Open: OPFS path for >25 MB receivers deferred (memory assembly works but is heavier on constrained devices).
 - Commit: pending
+
+## 2026-10-18: T2.7 Settings dialog
+
+- Changed: `lib/ui/SettingsDialog.svelte` (Dialog-based, three sections): Appearance (display name + theme, persisted to localStorage), Devices (mic/camera pickers via localMedia switch, devicechange listener), Advanced (relay-only, Nostr/MQTT transport toggles, connection-details toggle). Gear button on the Home header opens it.
+- Verified: `npm run check` clean; settings e2e passes (name + theme persist across a reload and re-appear in the dialog).
+- Commit: pending

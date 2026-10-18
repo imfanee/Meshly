@@ -17,9 +17,13 @@
     MonitorSmartphone,
     Sparkles,
     Download,
+    Settings,
   } from '@lucide/svelte';
   import { install, requestInstall } from '../lib/platform/install.svelte';
   import InstallSheet from '../lib/ui/InstallSheet.svelte';
+  import SettingsDialog from '../lib/ui/SettingsDialog.svelte';
+
+  let settingsOpen = $state(false);
 
   let joinLink = $state('');
   let name = $state(settings.displayName);
@@ -69,8 +73,17 @@
         {t.install.button}
       </Button>
     {/if}
+    <button
+      class="rounded-lg p-2 hover:bg-surface-2 focus-visible:outline-2
+        focus-visible:outline-brand"
+      aria-label="Settings"
+      onclick={() => (settingsOpen = true)}
+    >
+      <Settings size={20} />
+    </button>
   </header>
   <InstallSheet />
+  <SettingsDialog bind:open={settingsOpen} />
 
   <main
     class="flex flex-1 flex-col justify-center gap-10 py-8 md:grid md:grid-cols-2 md:items-center md:gap-16"
